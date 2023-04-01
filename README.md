@@ -1,2 +1,2 @@
 # jana-plugins
-collection of jana plugins for GlueX data analysis
+A collection of jana plugins managed by R.T.Jones for GlueX data analysis.
