@@ -7,3 +7,5 @@
 *.pyc
 *.o
 *.so
+*.os
+.sconsign.dblite
