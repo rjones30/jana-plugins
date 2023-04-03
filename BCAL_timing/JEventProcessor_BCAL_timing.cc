@@ -174,11 +174,11 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
       return NOERROR;
 #endif
 
-   hddm_r::HDDM *rec = make_rest_record(eventLoop);
-   hddm_r::ChargedTrackList charged_tracks = rec->getChargedTracks();
-   hddm_r::BcalShowerList bcal_showers = rec->getBcalShowers();
-   hddm_r::BcalMatchParamsList bcal_matches = rec->getBcalMatchParamses();
-   hddm_r::BcalDOCAtoTrackList bcal_docas = rec->getBcalDOCAtoTracks();
+   hddm_r::HDDM *record = make_rest_record(eventLoop);
+   hddm_r::ChargedTrackList charged_tracks = record->getChargedTracks();
+   hddm_r::BcalShowerList bcal_showers = record->getBcalShowers();
+   hddm_r::BcalMatchParamsList bcal_matches = record->getBcalMatchParamses();
+   hddm_r::BcalDOCAtoTrackList bcal_docas = record->getBcalDOCAtoTracks();
    std::vector<const DBCALShower*> dbcal_showers;
    std::vector<const DBCALCluster*> dbcal_clusters;
    std::vector<const DBCALPoint*> dbcal_points;
@@ -186,8 +186,10 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
    std::vector<const DBCALTDCHit*> dbcal_tdcs;
    std::vector<const DBCALHit*> dbcal_adcs;
    eventLoop->Get(dbcal_showers);
-   eventNo = rec->getReconstructedPhysicsEvent().getEventNo();
-   runNo = rec->getReconstructedPhysicsEvent().getRunNo();
+   eventNo = record->getReconstructedPhysicsEvent().getEventNo();
+   runNo = record->getReconstructedPhysicsEvent().getRunNo();
+
+   // remember to delete record when done, otherwise memleak!
 
    nhits = 0;
    hddm_r::BcalMatchParamsList::iterator match;
@@ -283,6 +285,8 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
          }
       }
    }
+
+   delete record;
 
    lock();
    if (nhits > 0) {
