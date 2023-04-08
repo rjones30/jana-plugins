@@ -175,6 +175,9 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
 #endif
 
    hddm_r::HDDM *record = make_rest_record(eventLoop);
+   if (record == 0)
+      return NOERROR;
+
    hddm_r::ChargedTrackList charged_tracks = record->getChargedTracks();
    hddm_r::BcalShowerList bcal_showers = record->getBcalShowers();
    hddm_r::BcalMatchParamsList bcal_matches = record->getBcalMatchParamses();
