@@ -50,24 +50,26 @@ class JEventProcessor_BCAL_timing:public jana::JEventProcessor
    float match_deltaz;   // delta z of shower from track impact, cm
 
    // low-level bcal pulse data
+#define MAX_BCAL_NHITS 999
    int nhits;            // number of bcal cells contributing to this shower
-   int hit_modseclay[999]; // bcal module * 100 + sector * 10 + layer
-   int hit_multi[999];  // hit multiplicity for this cell
-   float uphit_E[999];   // upstream hit pulse peak, GeV
-   float uphit_t[999];   // upstream hit time, ns
-   int uphit_peak[999]; // upstream hit pulse peak, adc counts
-   float uphit_tadc[999]; // upstream hit pulse time, ns
-   int uphit_tadc_raw[999]; // upstream hit pulse time, 62ps clock
-   float uphit_ttdc[999]; // upstream hit leading-edge time, ns
-   int uphit_ttdc_raw[999]; // upstream hit leading-edge time, 50ps clock
-   float dnhit_E[999];   // downstream hit pulse peak, GeV
-   float dnhit_t[999];   // downstream hit time, ns
-   int dnhit_peak[999]; // downstream hit pulse peak, adc counts
-   float dnhit_tadc[999]; // downstream hit pulse time, ns
-   int dnhit_tadc_raw[999]; // downstream hit pulse time, 62ps clock
-   float dnhit_ttdc[999]; // downstream hit leading-edge time, ns
-   int dnhit_ttdc_raw[999]; // downstream hit leading-edge time, 50ps clock
+   int hit_modseclay[MAX_BCAL_NHITS]; // bcal module * 100 + sector * 10 + layer
+   int hit_multi[MAX_BCAL_NHITS];  // hit multiplicity for this cell
+   float uphit_E[MAX_BCAL_NHITS];   // upstream hit pulse peak, GeV
+   float uphit_t[MAX_BCAL_NHITS];   // upstream hit time, ns
+   int uphit_peak[MAX_BCAL_NHITS]; // upstream hit pulse peak, adc counts
+   float uphit_tadc[MAX_BCAL_NHITS]; // upstream hit pulse time, ns
+   int uphit_tadc_raw[MAX_BCAL_NHITS]; // upstream hit pulse time, 62ps clock
+   float uphit_ttdc[MAX_BCAL_NHITS]; // upstream hit leading-edge time, ns
+   int uphit_ttdc_raw[MAX_BCAL_NHITS]; // upstream hit leading-edge time, 50ps clock
+   float dnhit_E[MAX_BCAL_NHITS];   // downstream hit pulse peak, GeV
+   float dnhit_t[MAX_BCAL_NHITS];   // downstream hit time, ns
+   int dnhit_peak[MAX_BCAL_NHITS]; // downstream hit pulse peak, adc counts
+   float dnhit_tadc[MAX_BCAL_NHITS]; // downstream hit pulse time, ns
+   int dnhit_tadc_raw[MAX_BCAL_NHITS]; // downstream hit pulse time, 62ps clock
+   float dnhit_ttdc[MAX_BCAL_NHITS]; // downstream hit leading-edge time, ns
+   int dnhit_ttdc_raw[MAX_BCAL_NHITS]; // downstream hit leading-edge time, 50ps clock
 
+   int nrows_seen_by_this_instance;
    hddm_r::HDDM *make_rest_record(jana::JEventLoop *h);
    int32_t Convert_UnsignedIntToSigned(uint32_t) const;
 

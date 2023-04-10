@@ -177,6 +177,10 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
    hddm_r::HDDM *record = make_rest_record(eventLoop);
    if (record == 0)
       return NOERROR;
+ 
+   // remember to delete record when done, otherwise memleak!
+
+   lock();
 
    hddm_r::ChargedTrackList charged_tracks = record->getChargedTracks();
    hddm_r::BcalShowerList bcal_showers = record->getBcalShowers();
@@ -191,8 +195,6 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
    eventLoop->Get(dbcal_showers);
    eventNo = record->getReconstructedPhysicsEvent().getEventNo();
    runNo = record->getReconstructedPhysicsEvent().getRunNo();
-
-   // remember to delete record when done, otherwise memleak!
 
    nhits = 0;
    hddm_r::BcalMatchParamsList::iterator match;
@@ -244,8 +246,8 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
                dnhit_tadc_raw[nhits] = -999;
                dnhit_ttdc[nhits] = -999;
                dnhit_ttdc_raw[nhits] = -999;
-               nhits += 1;
                int iend = dbcal_hits[ih]->end;
+               nhits = (nhits < MAX_BCAL_NHITS)? nhits + 1 : nhits;
                int ihit;
                for (ihit = 0; ihit < nhits; ++ihit) {
                   if (hit_modseclay[ihit] == hit_modseclay[nhits]) {
@@ -291,7 +293,6 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
 
    delete record;
 
-   lock();
    if (nhits > 0) {
       trest->Fill();
    }
@@ -309,6 +310,7 @@ jerror_t JEventProcessor_BCAL_timing::fini(void)
 {
    lock();
    trest->Write();
+   delete trest;
    unlock();
 
    return NOERROR;
@@ -518,8 +520,7 @@ hddm_r::HDDM *JEventProcessor_BCAL_timing::make_rest_record(JEventLoop *locEvent
         locFcalShowerPropertiesList().setE1E9(fcalshowers[i]->getE1E9());
         locFcalShowerPropertiesList().setE9E25(fcalshowers[i]->getE9E25());
         hddm_r::FcalShowerNBlocksList locFcalShowerNBlocksList = fcal().addFcalShowerNBlockses(1);
-	locFcalShowerNBlocksList().setNumBlocks(fcalshowers[i]->getNumBlocks());
-
+        locFcalShowerNBlocksList().setNumBlocks(fcalshowers[i]->getNumBlocks());
     }
             
 
@@ -637,8 +638,6 @@ hddm_r::HDDM *JEventProcessor_BCAL_timing::make_rest_record(JEventLoop *locEvent
 	// push any DTrackTimeBased objects to the output record
 	for (size_t i=0; i < tracks.size(); ++i)
 	{
-	
-
 		hddm_r::ChargedTrackList tra = res().addChargedTracks(1);
 		tra().setCandidateId(tracks[i]->candidateid);
 		tra().setPtype(tracks[i]->PID());
