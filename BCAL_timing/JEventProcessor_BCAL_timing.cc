@@ -196,7 +196,6 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
    eventNo = record->getReconstructedPhysicsEvent().getEventNo();
    runNo = record->getReconstructedPhysicsEvent().getRunNo();
 
-   nhits = 0;
    hddm_r::BcalMatchParamsList::iterator match;
    for (match = bcal_matches.begin(); match != bcal_matches.end(); ++match) {
       int itrack = match->getTrack();
@@ -222,6 +221,7 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
       shower_t = bcal_showers(ishower).getT();
       dbcal_showers[ishower]->Get(dbcal_clusters);
       for (int ic=0; ic < (int)dbcal_clusters.size(); ++ic) {
+         nhits = 0;
          dbcal_clusters[ic]->Get(dbcal_points);
          for (int ip=0; ip < (int)dbcal_points.size(); ++ip) {
             dbcal_points[ip]->Get(dbcal_hits);
@@ -249,8 +249,8 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
                int iend = dbcal_hits[ih]->end;
                nhits = (nhits < MAX_BCAL_NHITS)? nhits + 1 : nhits;
                int ihit;
-               for (ihit = 0; ihit < nhits; ++ihit) {
-                  if (hit_modseclay[ihit] == hit_modseclay[nhits]) {
+               for (ihit = 0; ihit < nhits-1; ++ihit) {
+                  if (hit_modseclay[ihit] == hit_modseclay[nhits-1]) {
                      hit_multi[ihit] += 1;
                      if ((iend == 0 && uphit_peak[ihit] <= 0) ||
                          (iend != 0 && dnhit_peak[ihit] <= 0))
@@ -288,14 +288,14 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
                }
             }
          }
+         if (nhits > 0) {
+            trest->Fill();
+         }
       }
    }
 
    delete record;
 
-   if (nhits > 0) {
-      trest->Fill();
-   }
    unlock();
 
    return NOERROR;
