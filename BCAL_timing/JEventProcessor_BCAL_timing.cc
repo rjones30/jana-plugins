@@ -168,11 +168,15 @@ jerror_t JEventProcessor_BCAL_timing::evnt(JEventLoop *eventLoop, uint64_t event
       trig_mask = 0;
       fp_trig_mask = 0;
    }
-   int trig_bits = fp_trig_mask > 0 ? 10 + fp_trig_mask : trig_mask;
+   vector<const DMCThrown*> locMCThrowns;
+   eventLoop->Get(locMCThrowns);
+   if (locMCThrowns.size() == 0) {
+      int trig_bits = fp_trig_mask > 0 ? 10 + fp_trig_mask : trig_mask;
 #ifdef SELECT_TRIGGER_TYPE
-   if ((trig_bits & (1 << SELECT_TRIGGER_TYPE)) == 0)
-      return NOERROR;
+      if ((trig_bits & (1 << SELECT_TRIGGER_TYPE)) == 0)
+         return NOERROR;
 #endif
+   }
 
    hddm_r::HDDM *record = make_rest_record(eventLoop);
    if (record == 0)
