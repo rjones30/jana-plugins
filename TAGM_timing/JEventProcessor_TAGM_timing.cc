@@ -318,6 +318,8 @@ jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t event
       return NOERROR;
 #endif
 
+   lock();
+
    rftime = 999;
    const double rf_period = 4.008;
    std::vector<const DRFTime*> rf_times;
@@ -327,8 +329,6 @@ jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t event
       int nper = round((*irf)->dTime / rf_period);
       rftime = (*irf)->dTime - nper * rf_period;
    }
-
-   lock();
  
    std::vector<const DTAGMHit*> tagm_hits;
    eventLoop->Get(tagm_hits, "Calib");
