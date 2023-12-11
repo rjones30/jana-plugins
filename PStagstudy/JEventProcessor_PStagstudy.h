@@ -38,6 +38,7 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    float tagm_peak[999];
    float tagm_pint[999];
    float tagm_tadc[999];
+   float tagm_toth[999];
    float tagm_ttdc[999];
    float tagm_time[999];
    float tagm_pmax[999];
@@ -57,6 +58,7 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    float tagh_peak[999];
    float tagh_pint[999];
    float tagh_tadc[999];
+   float tagh_toth[999];
    float tagh_ttdc[999];
    float tagh_time[999];
    float tagh_pmax[999];

@@ -29,6 +29,7 @@ using namespace jana;
 #include <PID/DBeamPhoton.h>
 #include <DAQ/DCODAEventInfo.h>
 #include <DAQ/DCODAROCInfo.h>
+#include <DAQ/Df250PulseData.h>
 #include <GlueX.h>
 #include <TDirectory.h>
 #include <TH1.h>
@@ -111,6 +112,7 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("tagm_peak", tagm_peak, "tagm_peak[ntagm]/F");
    pstags->Branch("tagm_pint", tagm_pint, "tagm_pint[ntagm]/F");
    pstags->Branch("tagm_tadc", tagm_tadc, "tagm_tadc[ntagm]/F");
+   pstags->Branch("tagm_toth", tagm_toth, "tagm_toth[ntagm]/F");
    pstags->Branch("tagm_ttdc", tagm_ttdc, "tagm_ttdc[ntagm]/F");
    pstags->Branch("tagm_time", tagm_time, "tagm_time[ntagm]/F");
    pstags->Branch("tagm_Etag", tagm_Etag, "tagm_Etag[ntagm]/F");
@@ -130,6 +132,7 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("tagh_peak", tagh_peak, "tagh_peak[ntagh]/F");
    pstags->Branch("tagh_pint", tagh_pint, "tagh_pint[ntagh]/F");
    pstags->Branch("tagh_tadc", tagh_tadc, "tagh_tadc[ntagh]/F");
+   pstags->Branch("tagh_toth", tagh_toth, "tagh_toth[ntagh]/F");
    pstags->Branch("tagh_ttdc", tagh_ttdc, "tagh_ttdc[ntagh]/F");
    pstags->Branch("tagh_time", tagh_time, "tagh_time[ntagh]/F");
    pstags->Branch("tagh_Etag", tagh_Etag, "tagh_Etag[ntagh]/F");
@@ -256,6 +259,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       tagm_peak[ntagm] = (*itagm)->pulse_peak;
       tagm_pint[ntagm] = (*itagm)->integral;
       tagm_tadc[ntagm] = (*itagm)->time_fadc;
+      tagm_toth[ntagm] = 999;
       tagm_ttdc[ntagm] = (*itagm)->time_tdc;
       tagm_Etag[ntagm] = (*itagm)->E;
       tagm_time[ntagm] = (*itagm)->t;
@@ -280,6 +284,19 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
             tagm_qf[ntagm] = (*atagm)->QF;
             tagm_nped[ntagm] = (*atagm)->nsamples_pedestal;
             tagm_nint[ntagm] = (*atagm)->nsamples_integral;
+            std::vector<const Df250PulseData*> pulse_data;
+            (*atagm)->Get(pulse_data);
+            std::vector<const Df250PulseData*>::iterator ptagm;
+            for (ptagm = pulse_data.begin(); ptagm != pulse_data.end(); ++ptagm) {
+               tagm_toth[ntagm] = (*ptagm)->nsamples_over_threshold * 4;
+               // f_qpedestal = ((*ptagm)->QF_pedestal)? 1 : 0;
+               // f_latepulse = ((*ptagm)->QF_NSA_beyond_PTW)? 1 : 0;
+               // f_underflow = ((*ptagm)->QF_underflow)? 1 : 0;
+               // f_overflow = ((*ptagm)->QF_overflow)? 1 : 0;
+               // f_notpeak = ((*ptagm)->QF_vpeak_beyond_NSA)? 1 : 0;
+               // f_nopeak = ((*ptagm)->QF_vpeak_not_found)? 1 : 0;
+               // f_badped = ((*ptagm)->QF_bad_pedestal)? 1 : 0;
+            }
          }
       }
       std::vector<const DTAGMHit*> assoc_hits;
@@ -293,6 +310,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
          tagm_peak[ntagm] = (*jtagm)->pulse_peak;
          tagm_pint[ntagm] = (*jtagm)->integral;
          tagm_tadc[ntagm] = (*jtagm)->time_fadc;
+         tagm_toth[ntagm] = 999;
          tagm_ttdc[ntagm] = (*jtagm)->time_tdc;
          tagm_Etag[ntagm] = (*jtagm)->E;
          tagm_time[ntagm] = (*jtagm)->t;
@@ -315,6 +333,19 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
                tagm_qf[ntagm] = (*atagm)->QF;
                tagm_nped[ntagm] = (*atagm)->nsamples_pedestal;
                tagm_nint[ntagm] = (*atagm)->nsamples_integral;
+               std::vector<const Df250PulseData*> pulse_data;
+               (*atagm)->Get(pulse_data);
+               std::vector<const Df250PulseData*>::iterator ptagm;
+               for (ptagm = pulse_data.begin(); ptagm != pulse_data.end(); ++ptagm) {
+                  tagm_toth[ntagm] = (*ptagm)->nsamples_over_threshold * 4;
+                  // f_qpedestal = ((*ptagm)->QF_pedestal)? 1 : 0;
+                  // f_latepulse = ((*ptagm)->QF_NSA_beyond_PTW)? 1 : 0;
+                  // f_underflow = ((*ptagm)->QF_underflow)? 1 : 0;
+                  // f_overflow = ((*ptagm)->QF_overflow)? 1 : 0;
+                  // f_notpeak = ((*ptagm)->QF_vpeak_beyond_NSA)? 1 : 0;
+                  // f_nopeak = ((*ptagm)->QF_vpeak_not_found)? 1 : 0;
+                  // f_badped = ((*ptagm)->QF_bad_pedestal)? 1 : 0;
+               }
             }
          }
       }
@@ -332,6 +363,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       tagh_peak[ntagh] = (*itagh)->pulse_peak;
       tagh_pint[ntagh] = (*itagh)->integral;
       tagh_tadc[ntagh] = (*itagh)->time_fadc;
+      tagh_toth[ntagh] = 999;
       tagh_ttdc[ntagh] = (*itagh)->time_tdc;
       tagh_Etag[ntagh] = (*itagh)->E;
       tagh_time[ntagh] = (*itagh)->t;
@@ -354,6 +386,19 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
             tagh_qf[ntagh] = (*atagh)->QF;
             tagh_nped[ntagh] = (*atagh)->nsamples_pedestal;
             tagh_nint[ntagh] = (*atagh)->nsamples_integral;
+            std::vector<const Df250PulseData*> pulse_data;
+            (*atagh)->Get(pulse_data);
+            std::vector<const Df250PulseData*>::iterator ptagh;
+            for (ptagh = pulse_data.begin(); ptagh != pulse_data.end(); ++ptagh) {
+               tagm_toth[ntagh] = (*ptagh)->nsamples_over_threshold * 4;
+               // f_qpedestal = ((*ptagh)->QF_pedestal)? 1 : 0;
+               // f_latepulse = ((*ptagh)->QF_NSA_beyond_PTW)? 1 : 0;
+               // f_underflow = ((*ptagh)->QF_underflow)? 1 : 0;
+               // f_overflow = ((*ptagh)->QF_overflow)? 1 : 0;
+               // f_notpeak = ((*ptagh)->QF_vpeak_beyond_NSA)? 1 : 0;
+               // f_nopeak = ((*ptagh)->QF_vpeak_not_found)? 1 : 0;
+               // f_badped = ((*ptagh)->QF_bad_pedestal)? 1 : 0;
+            }
          }
       }
       std::vector<const DTAGHHit*> assoc_hits;
@@ -367,6 +412,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
          tagh_peak[ntagh] = (*jtagh)->pulse_peak;
          tagh_pint[ntagh] = (*jtagh)->integral;
          tagh_tadc[ntagh] = (*jtagh)->time_fadc;
+         tagh_toth[ntagh] = 999;
          tagh_ttdc[ntagh] = (*jtagh)->time_tdc;
          tagh_Etag[ntagh] = (*jtagh)->E;
          tagh_time[ntagh] = (*jtagh)->t;
@@ -387,6 +433,19 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
                tagh_qf[ntagh] = (*atagh)->QF;
                tagh_nped[ntagh] = (*atagh)->nsamples_pedestal;
                tagh_nint[ntagh] = (*atagh)->nsamples_integral;
+               std::vector<const Df250PulseData*> pulse_data;
+               (*atagh)->Get(pulse_data);
+               std::vector<const Df250PulseData*>::iterator ptagh;
+               for (ptagh = pulse_data.begin(); ptagh != pulse_data.end(); ++ptagh) {
+                  tagh_toth[ntagh] = (*ptagh)->nsamples_over_threshold * 4;
+                  // f_qpedestal = ((*ptagh)->QF_pedestal)? 1 : 0;
+                  // f_latepulse = ((*ptagh)->QF_NSA_beyond_PTW)? 1 : 0;
+                  // f_underflow = ((*ptagh)->QF_underflow)? 1 : 0;
+                  // f_overflow = ((*ptagh)->QF_overflow)? 1 : 0;
+                  // f_notpeak = ((*ptagh)->QF_vpeak_beyond_NSA)? 1 : 0;
+                  // f_nopeak = ((*ptagh)->QF_vpeak_not_found)? 1 : 0;
+                  // f_badped = ((*ptagh)->QF_bad_pedestal)? 1 : 0;
+               }
             }
          }
       }
