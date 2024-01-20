@@ -6,10 +6,10 @@
 #define _JEventProcessor_PStagstudy_
 
 #include <JANA/JEventProcessor.h>
+#include <TTAB/DTranslationTable.h>
 #include <TTree.h>
 #include <TH1S.h>
 #include <vector>
-
 
 class JEventProcessor_PStagstudy:public jana::JEventProcessor
 {
@@ -52,7 +52,7 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    int tagm_has_tdc[999];
    int tagm_nped[999];
    int tagm_nint[999];
-   std::vector<TH1S*> tagm_raw_waveform;
+   std::vector<std::vector<unsigned short> > tagm_raw_waveform;
 
    int ntagh;
    int tagh_seqno[999];
@@ -73,7 +73,7 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    int tagh_has_tdc[999];
    int tagh_nped[999];
    int tagh_nint[999];
-   std::vector<TH1S*> tagh_raw_waveform;
+   std::vector<std::vector<unsigned short> > tagh_raw_waveform;
 
    int nbeam;
    int beam_sys[999];
@@ -96,8 +96,8 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    float pstright[999];
    int nleft_ps[999];
    int nright_ps[999];
-   std::vector<TH1S*> psleft_raw_waveform;
-   std::vector<TH1S*> psright_raw_waveform;
+   std::vector<std::vector<unsigned short> > psleft_raw_waveform;
+   std::vector<std::vector<unsigned short> > psright_raw_waveform;
 
    int npairpsc;
    int pscleft_seqno[999];
@@ -118,8 +118,11 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    float pscright_ped[999];
    int pscleft_qf[999];
    int pscright_qf[999];
-   std::vector<TH1S*> pscleft_raw_waveform;
-   std::vector<TH1S*> pscright_raw_waveform;
+   std::vector<std::vector<unsigned short> > pscleft_raw_waveform;
+   std::vector<std::vector<unsigned short> > pscright_raw_waveform;
+
+   const DTranslationTable::DChannelInfo GetDetectorIndex(const DTranslationTable *ttab,
+                                                          DTranslationTable::csc_t csc);
 
  private:
    jerror_t init(void);
