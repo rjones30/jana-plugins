@@ -21,6 +21,8 @@ using namespace jana;
 #include <TAGGER/DTAGHHit.h>
 #include <TAGGER/DTAGHDigiHit.h>
 #include <TAGGER/DTAGHTDCDigiHit.h>
+#include <DAQ/Df250WindowRawData.h>
+#include <TTAB/DTranslationTable.h>
 #include <RF/DRFTime.h>
 #include <PAIR_SPECTROMETER/DPSCPair.h>
 #include <PAIR_SPECTROMETER/DPSPair.h>
@@ -36,7 +38,7 @@ using namespace jana;
 #include <TH2.h>
 
 // main trigger is bit 0, ps triggers are bit 3
-#define SELECT_TRIGGER_TYPE 3
+//#define SELECT_TRIGGER_TYPE 3
 
 void report_bad_pmax(const DTAGMHit *itagm) {
    std::cout << "  DTAGMHit: column=" << itagm->column
@@ -125,6 +127,7 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("tagm_has_tdc", tagm_has_tdc, "tagm_has_tdc[ntagm]/I");
    pstags->Branch("tagm_nped", tagm_nped, "tagm_nped[ntagm]/I");
    pstags->Branch("tagm_nint", tagm_nint, "tagm_nint[ntagm]/I");
+   pstags->Branch("tagm_raw_waveform", &tagm_raw_waveform, 30000, 1);
 
    pstags->Branch("ntagh", &ntagh, "ntagh/I[0,999]");
    pstags->Branch("tagh_seqno", tagh_seqno, "tagh_seqno[ntagh]/I");
@@ -145,6 +148,7 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("tagh_has_tdc", tagh_has_tdc, "tagh_has_tdc[ntagh]/I");
    pstags->Branch("tagh_nped", tagh_nped, "tagh_nped[ntagh]/I");
    pstags->Branch("tagh_nint", tagh_nint, "tagh_nint[ntagh]/I");
+   pstags->Branch("tagh_raw_waveform", &tagh_raw_waveform, 30000, 1);
 
    pstags->Branch("nbeam", &nbeam, "nbeam/I[0,999]");
    pstags->Branch("beam_sys", beam_sys, "beam_sys[nbeam]/I");
@@ -167,6 +171,8 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("pstright", pstright, "pstright[npairps]/F");
    pstags->Branch("nleft_ps", nleft_ps, "nleft_ps[npairps]/I");
    pstags->Branch("nright_ps", nright_ps, "nright_ps[npairps]/I");
+   pstags->Branch("psleft_raw_waveform", &psleft_raw_waveform, 30000, 1);
+   pstags->Branch("psright_raw_waveform", &psright_raw_waveform, 30000, 1);
 
    pstags->Branch("npairpsc", &npairpsc, "npairpsc/I[0,999]");
    pstags->Branch("pscleft_seqno", pscleft_seqno, "pscleft_seqno[npairpsc]/I");
@@ -187,13 +193,10 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("pscright_ped", pscright_ped, "pscright_ped[npairpsc]/F");
    pstags->Branch("pscleft_qf", pscleft_qf, "pscleft_qf[npairpsc]/I");
    pstags->Branch("pscright_qf", pscright_qf, "pscright_qf[npairpsc]/I");
+   pstags->Branch("pscleft_raw_waveform", &pscleft_raw_waveform, 30000, 1);
+   pstags->Branch("pscright_raw_waveform", &pscright_raw_waveform, 30000, 1);
 
    unlock();
-   return NOERROR;
-}
-
-
-jerror_t JEventProcessor_PStagstudy::brun(JEventLoop *eventLoop, int32_t runnumber) {
    return NOERROR;
 }
 
@@ -248,14 +251,36 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       nrf++;
    }
 
+   // get the raw window data, if any
+   std::vector<const Df250WindowRawData*> traces;
+   eventLoop->Get(traces);
+   std::vector<const DTranslationTable*> ttables;
+   eventLoop->Get(ttables);
+   if (ttables.size() != 1) {
+      std::cout << "Serious error in PStagstudy plugin - "
+                << "unable to acquire the DAQ translation table!"
+                << std::endl;
+      return NOERROR;
+   }
+   const DTranslationTable *ttab = ttables[0];
+
+   tagm_raw_waveform.clear();
+   tagh_raw_waveform.clear();
+   psleft_raw_waveform.clear();
+   psright_raw_waveform.clear();
+   pscleft_raw_waveform.clear();
+   pscright_raw_waveform.clear();
+
    std::vector<const DTAGMHit*> tagm_hits;
    eventLoop->Get(tagm_hits, "Calib");
    std::vector<const DTAGMHit*>::iterator itagm;
    int ntagm_per_channel[6][128] = {0};
    ntagm = 0;
    for (itagm = tagm_hits.begin(); itagm != tagm_hits.end(); ++itagm) {
-      tagm_seqno[ntagm] = ntagm_per_channel[(*itagm)->row][(*itagm)->column]++;
-      tagm_channel[ntagm] = (*itagm)->column + (*itagm)->row * 1000;
+      int row = (*itagm)->row;
+      int column = (*itagm)->column;
+      tagm_seqno[ntagm] = ntagm_per_channel[row][column]++;
+      tagm_channel[ntagm] = column + row * 1000;
       tagm_peak[ntagm] = (*itagm)->pulse_peak;
       tagm_pint[ntagm] = (*itagm)->integral;
       tagm_tadc[ntagm] = (*itagm)->time_fadc;
@@ -276,8 +301,8 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       (*itagm)->Get(digi_hits);
       std::vector<const DTAGMDigiHit*>::iterator atagm;
       for (atagm = digi_hits.begin(); atagm != digi_hits.end(); ++atagm) {
-         if ((*atagm)->row == (*itagm)->row &&
-             (*atagm)->column == (*itagm)->column)
+         if ((*atagm)->row == row &&
+             (*atagm)->column == column)
          {
             tagm_pmax[ntagm] = (*atagm)->pulse_peak;
             tagm_ped[ntagm] = (*atagm)->pedestal;
@@ -346,6 +371,18 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
                   // f_nopeak = ((*ptagm)->QF_vpeak_not_found)? 1 : 0;
                   // f_badped = ((*ptagm)->QF_bad_pedestal)? 1 : 0;
                }
+            }
+         }
+      }
+      tagm_raw_waveform.push_back(new TH1S);
+      std::vector<const Df250WindowRawData*>::iterator itrace;
+      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
+         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
+         const DTranslationTable::DChannelInfo chaninfo = ttab->GetDetectorIndex(csc);
+         if (chaninfo.det_sys == DTranslationTable::TAGM) {
+            if ((int)chaninfo.tagm.row == row && (int)chaninfo.tagm.col == column) {
+               tagm_raw_waveform.back()->Set((*itrace)->samples.size(),
+                                             (const short*)(*itrace)->samples.data());
             }
          }
       }
@@ -449,6 +486,18 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
             }
          }
       }
+      tagh_raw_waveform.push_back(new TH1S);
+      std::vector<const Df250WindowRawData*>::iterator itrace;
+      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
+         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
+         const DTranslationTable::DChannelInfo chaninfo = ttab->GetDetectorIndex(csc);
+         if (chaninfo.det_sys == DTranslationTable::TAGH) {
+            if ((int)chaninfo.tagh.id == (*itagh)->counter_id) {
+               tagh_raw_waveform.back()->Set((*itrace)->samples.size(),
+                                             (const short*)(*itrace)->samples.data());
+            }
+         }
+      }
       ntagh++;
    }
 
@@ -483,6 +532,26 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       pstright[npairps] = (*ipair)->right->t;
       nleft_ps[npairps] = (*ipair)->right->ntiles;
       nright_ps[npairps] = (*ipair)->right->ntiles;
+
+      psleft_raw_waveform.push_back(new TH1S);
+      psright_raw_waveform.push_back(new TH1S);
+      std::vector<const Df250WindowRawData*>::iterator itrace;
+      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
+         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
+         const DTranslationTable::DChannelInfo chaninfo = ttab->GetDetectorIndex(csc);
+         if (chaninfo.det_sys == DTranslationTable::PS && chaninfo.ps.side == 0) {
+            if ((int)chaninfo.ps.id == (*ipair)->left->column) {
+               psleft_raw_waveform.back()->Set((*itrace)->samples.size(),
+                                               (const short*)(*itrace)->samples.data());
+            }
+         }
+         else if (chaninfo.det_sys == DTranslationTable::PS && chaninfo.ps.side == 1) {
+            if ((int)chaninfo.ps.id == (*ipair)->right->column) {
+               psright_raw_waveform.back()->Set((*itrace)->samples.size(),
+                                                (const short*)(*itrace)->samples.data());
+            }
+         }
+      }
       ++npairps;
    }
 
@@ -532,6 +601,24 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       for (apsc = digi_hits.begin(); apsc != digi_hits.end(); ++apsc) {
          pscright_ped[npairpsc] = (*apsc)->pedestal;
          pscright_qf[npairpsc] = (*apsc)->QF;
+      }
+
+      pscleft_raw_waveform.push_back(new TH1S);
+      pscright_raw_waveform.push_back(new TH1S);
+      std::vector<const Df250WindowRawData*>::iterator itrace;
+      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
+         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
+         const DTranslationTable::DChannelInfo chaninfo = ttab->GetDetectorIndex(csc);
+         if (chaninfo.det_sys == DTranslationTable::PSC) {
+            if ((int)chaninfo.psc.id == (*icpair)->ee.first->module) {
+               psleft_raw_waveform.back()->Set((*itrace)->samples.size(),
+                                               (const short*)(*itrace)->samples.data());
+            }
+            else if ((int)chaninfo.psc.id == (*icpair)->ee.second->module) {
+               psright_raw_waveform.back()->Set((*itrace)->samples.size(),
+                                                (const short*)(*itrace)->samples.data());
+            }
+         }
       }
       npairpsc++;
    }
