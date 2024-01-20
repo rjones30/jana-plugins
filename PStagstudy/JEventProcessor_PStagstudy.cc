@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <vector>
 #include <TMath.h>
+#include <TInterpreter.h>
 
 #include "JEventProcessor_PStagstudy.h"
 #include <JANA/JApplication.h>
@@ -99,6 +100,9 @@ void JEventProcessor_PStagstudy::unlock() {
 
 jerror_t JEventProcessor_PStagstudy::init(void) {
    lock();
+
+   gInterpreter->GenerateDictionary("vector<vector<short> >", "vector");
+
    pstags = new TTree("pstags", "PS tag study");
    pstags->Branch("runno", &runno, "runno/i");
    pstags->Branch("eventno", &eventno, "eventno/i");
@@ -205,8 +209,8 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
 //------------------
 jerror_t JEventProcessor_PStagstudy::brun(JEventLoop *eventLoop, int32_t runnumber)
 {
-	// This is called whenever the run number changes
-	return NOERROR;
+   // This is called whenever the run number changes
+   return NOERROR;
 }
 
 jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventnumber) {
@@ -234,6 +238,9 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
 #ifdef SELECT_TRIGGER_TYPE
    if ((trig_bits & (1 << SELECT_TRIGGER_TYPE)) == 0)
       return NOERROR;
+#else
+   if (trig_bits == 0)
+      trig_bits = 0;
 #endif
 
    lock();
