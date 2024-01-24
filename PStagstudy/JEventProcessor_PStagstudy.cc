@@ -107,6 +107,7 @@ JEventProcessor_PStagstudy::GetDetectorIndex(const DTranslationTable *ttab,
       index = ttab->GetDetectorIndex(csc);
    }
    catch(...) {
+      index.det_sys = DTranslationTable::UNKNOWN_DETECTOR;
    }
    return index;
 }
