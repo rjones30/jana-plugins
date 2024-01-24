@@ -256,13 +256,13 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    if (trig_bits == 0)
       trig_bits = 0;
 #endif
-
-   lock();
  
    std::vector<const DCODAEventInfo*> event_info;
    eventLoop->Get(event_info);
    if (event_info.size() == 0)
       return NOERROR;
+
+   lock();
 
    runno = event_info[0]->run_number;
    eventno = event_info[0]->event_number;
@@ -294,6 +294,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       std::cout << "Serious error in PStagstudy plugin - "
                 << "unable to acquire the DAQ translation table!"
                 << std::endl;
+      unlock();
       return NOERROR;
    }
    const DTranslationTable *ttab = ttables[0];
