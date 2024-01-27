@@ -174,6 +174,48 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("beam_t", beam_t, "beam_t[nbeam]/F");
    pstags->Branch("beam_z", beam_z, "beam_z[nbeam]/F");
 
+   pstags->Branch("nps", &nps, "nps/I[0,999]");
+   pstags->Branch("ps_seqno", ps_seqno, "ps_seqno[nps]/I");
+   pstags->Branch("ps_arm", ps_arm, "ps_arm[nps]/I");
+   pstags->Branch("ps_column", ps_column, "ps_column[nps]/I");
+   pstags->Branch("ps_peak", ps_peak, "ps_peak[nps]/F");
+   pstags->Branch("ps_pint", ps_pint, "ps_pint[nps]/F");
+   pstags->Branch("ps_npix", ps_pint, "ps_npix[nps]/F");
+   pstags->Branch("ps_t", ps_t, "ps_t[nps]/F");
+   pstags->Branch("ps_E", ps_E, "ps_E[nps]/F");
+   pstags->Branch("ps_tadc", ps_tadc, "ps_tadc[nps]/F");
+   pstags->Branch("ps_toth", ps_toth, "ps_toth[nps]/F");
+   pstags->Branch("ps_pmax", ps_pmax, "ps_pmax[nps]/F");
+   pstags->Branch("ps_ped", ps_ped, "ps_ped[nps]/F");
+   pstags->Branch("ps_multi", ps_multi, "ps_multi[nps]/I");
+   pstags->Branch("ps_qf", ps_qf, "ps_qf[nps]/I");
+   pstags->Branch("ps_nped", ps_nped, "ps_nped[nps]/I");
+   pstags->Branch("ps_nint", ps_nint, "ps_nint[nps]/I");
+   pstags->Branch("ps_raw_waveform", &ps_raw_waveform, 30000, 1);
+
+   pstags->Branch("npsc", &npsc, "npsc/I[0,999]");
+   pstags->Branch("psc_seqno", psc_seqno, "psc_seqno[npsc]/I");
+   pstags->Branch("psc_arm", psc_arm, "pcs_arm[npsc]/I");
+   pstags->Branch("psc_module", psc_module, "ps_module[npsc]/I");
+   pstags->Branch("psc_counter", psc_counter, "psc_counter[npsc]/I");
+   pstags->Branch("psc_peak", psc_peak, "psc_peak[npsc]/F");
+   pstags->Branch("psc_pint", psc_pint, "psc_pint[npsc]/F");
+   pstags->Branch("psc_npe", psc_npe, "psc_npe[npsc]/F");
+   pstags->Branch("psc_t", psc_t, "psc_t[npsc]/F");
+   pstags->Branch("psc_tadc", psc_tadc, "psc_tadc[npsc]/F");
+   pstags->Branch("psc_ttdc", psc_ttdc, "psc_ttdc[npsc]/F");
+   pstags->Branch("psc_toth", psc_toth, "psc_toth[npsc]/F");
+   pstags->Branch("psc_pmax", psc_pmax, "psc_pmax[npsc]/F");
+   pstags->Branch("psc_ped", psc_ped, "psc_ped[npsc]/F");
+   pstags->Branch("psc_multi", psc_multi, "psc_multi[npsc]/I");
+   pstags->Branch("psc_qf", psc_qf, "psc_qf[npsc]/I");
+   pstags->Branch("psc_bg", psc_bg, "psc_bg[npsc]/I");
+   pstags->Branch("psc_has_adc", psc_has_adc, "psc_has_adc[npsc]/I");
+   pstags->Branch("psc_has_tdc", psc_has_tdc, "psc_has_tdc[npsc]/I");
+   pstags->Branch("psc_nped", psc_nped, "psc_nped[npsc]/I");
+   pstags->Branch("psc_nint", psc_nint, "psc_nint[npsc]/I");
+   pstags->Branch("psc_raw_waveform", &psc_raw_waveform, 30000, 1);
+
    pstags->Branch("npairps", &npairps, "npairps/I[0,999]");
    pstags->Branch("Epair", Epair, "Epair[npairps]/F");
    pstags->Branch("tpair", tpair, "tpair[npairps]/F");
@@ -189,8 +231,6 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("pstright", pstright, "pstright[npairps]/F");
    pstags->Branch("nleft_ps", nleft_ps, "nleft_ps[npairps]/I");
    pstags->Branch("nright_ps", nright_ps, "nright_ps[npairps]/I");
-   pstags->Branch("psleft_raw_waveform", &psleft_raw_waveform, 30000, 1);
-   pstags->Branch("psright_raw_waveform", &psright_raw_waveform, 30000, 1);
 
    pstags->Branch("npairpsc", &npairpsc, "npairpsc/I[0,999]");
    pstags->Branch("pscleft_seqno", pscleft_seqno, "pscleft_seqno[npairpsc]/I");
@@ -211,8 +251,6 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("pscright_ped", pscright_ped, "pscright_ped[npairpsc]/F");
    pstags->Branch("pscleft_qf", pscleft_qf, "pscleft_qf[npairpsc]/I");
    pstags->Branch("pscright_qf", pscright_qf, "pscright_qf[npairpsc]/I");
-   pstags->Branch("pscleft_raw_waveform", &pscleft_raw_waveform, 30000, 1);
-   pstags->Branch("pscright_raw_waveform", &pscright_raw_waveform, 30000, 1);
 
    unlock();
    return NOERROR;
@@ -301,10 +339,8 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
 
    tagm_raw_waveform.clear();
    tagh_raw_waveform.clear();
-   psleft_raw_waveform.clear();
-   psright_raw_waveform.clear();
-   pscleft_raw_waveform.clear();
-   pscright_raw_waveform.clear();
+   ps_raw_waveform.clear();
+   psc_raw_waveform.clear();
 
    std::vector<const DTAGMHit*> tagm_hits;
    eventLoop->Get(tagm_hits, "Calib");
@@ -462,7 +498,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
             (*atagh)->Get(pulse_data);
             std::vector<const Df250PulseData*>::iterator ptagh;
             for (ptagh = pulse_data.begin(); ptagh != pulse_data.end(); ++ptagh) {
-               tagm_toth[ntagh] = (*ptagh)->nsamples_over_threshold * 4;
+               tagh_toth[ntagh] = (*ptagh)->nsamples_over_threshold * 4;
                // f_qpedestal = ((*ptagh)->QF_pedestal)? 1 : 0;
                // f_latepulse = ((*ptagh)->QF_NSA_beyond_PTW)? 1 : 0;
                // f_underflow = ((*ptagh)->QF_underflow)? 1 : 0;
@@ -536,6 +572,145 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       ntagh++;
    }
 
+   std::vector<const DPSHit*> ps_hits;
+   eventLoop->Get(ps_hits);
+   std::vector<const DPSHit*>::iterator ips;
+   int nps_per_counter[512] = {0};
+   nps = 0;
+   for (ips = ps_hits.begin(); ips != ps_hits.end(); ++ips) {
+      ps_arm[nps] = (*ips)->arm;
+      ps_column[nps] = (*ips)->column;
+      ps_seqno[nps] = nps_per_counter[ps_arm[nps] * 256 + ps_column[nps]]++;
+      ps_E[nps] = (*ips)->E;
+      ps_t[nps] = (*ips)->t;
+      ps_pint[nps] = (*ips)->integral;
+      ps_peak[nps] = (*ips)->pulse_peak;
+      ps_npix[nps] = (*ips)->npix_fadc;
+      ps_toth[nps] = 999;
+      ps_tadc[nps] = 999;
+      ps_multi[nps] = 0;
+      ps_pmax[nps] = 999;
+      ps_ped[nps] = 999;
+      ps_qf[nps] = 999;
+      ps_nped[nps] = 999;
+      ps_nint[nps] = 999;
+      std::vector<const DPSDigiHit*> digi_hits;
+      (*ips)->Get(digi_hits);
+      std::vector<const DPSDigiHit*>::iterator aps;
+      for (aps = digi_hits.begin(); aps != digi_hits.end(); ++aps) {
+         if ((*aps)->column == (*ips)->column && (*aps)->arm == (*ips)->arm) {
+            ps_tadc[nps] = (*aps)->pulse_time;
+            ps_pmax[nps] = (*aps)->pulse_peak;
+            ps_ped[nps] = (*aps)->pedestal;
+            ps_qf[nps] = (*aps)->QF;
+            ps_nped[nps] = (*aps)->nsamples_pedestal;
+            ps_nint[nps] = (*aps)->nsamples_integral;
+            std::vector<const Df250PulseData*> pulse_data;
+            (*aps)->Get(pulse_data);
+            std::vector<const Df250PulseData*>::iterator pps;
+            for (pps = pulse_data.begin(); pps != pulse_data.end(); ++pps) {
+               ps_toth[nps] = (*pps)->nsamples_over_threshold * 4;
+               // f_qpedestal = ((*pps)->QF_pedestal)? 1 : 0;
+               // f_latepulse = ((*pps)->QF_NSA_beyond_PTW)? 1 : 0;
+               // f_underflow = ((*pps)->QF_underflow)? 1 : 0;
+               // f_overflow = ((*pps)->QF_overflow)? 1 : 0;
+               // f_notpeak = ((*pps)->QF_vpeak_beyond_NSA)? 1 : 0;
+               // f_nopeak = ((*pps)->QF_vpeak_not_found)? 1 : 0;
+               // f_badped = ((*pps)->QF_bad_pedestal)? 1 : 0;
+            }
+         }
+      }
+      std::vector<unsigned short> trace;
+      std::vector<const Df250WindowRawData*>::iterator itrace;
+      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
+         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
+         const DTranslationTable::DChannelInfo chaninfo = GetDetectorIndex(ttab, csc);
+         if (chaninfo.det_sys == DTranslationTable::PS) {
+            if ((int)chaninfo.ps.side == (*ips)->arm && (int)chaninfo.ps.id == (*ips)->column) {
+               trace = (*itrace)->samples;
+            }
+         }
+      }
+      ps_raw_waveform.push_back(trace);
+      nps++;
+   }
+
+   std::vector<const DPSCHit*> psc_hits;
+   eventLoop->Get(psc_hits);
+   std::vector<const DPSCHit*>::iterator ipsc;
+   int npsc_per_counter[512] = {0};
+   npsc = 0;
+   for (ipsc = psc_hits.begin(); ipsc != psc_hits.end(); ++ipsc) {
+      psc_arm[npsc] = (*ipsc)->arm;
+      psc_module[npsc] = (*ipsc)->module;
+      psc_counter[npsc] = ((*ipsc)->arm * 4 + (*ipsc)->module);
+      psc_seqno[npsc] = npsc_per_counter[psc_counter[npsc]]++;
+      psc_t[npsc] = (*ipsc)->t;
+      psc_pint[npsc] = (*ipsc)->integral;
+      psc_peak[npsc] = (*ipsc)->pulse_peak;
+      psc_npe[npsc] = (*ipsc)->npe_fadc;
+      psc_tadc[npsc] = (*ipsc)->time_fadc;
+      psc_ttdc[npsc] = (*ipsc)->time_tdc;
+      psc_has_adc[npsc] = 0;
+      psc_has_tdc[npsc] = 0;
+      psc_toth[npsc] = 999;
+      psc_multi[npsc] = 0;
+      psc_pmax[npsc] = 999;
+      psc_ped[npsc] = 999;
+      psc_qf[npsc] = 999;
+      psc_nped[npsc] = 999;
+      psc_nint[npsc] = 999;
+      std::vector<const DPSCDigiHit*> digi_hits;
+      (*ipsc)->Get(digi_hits);
+      std::vector<const DPSCDigiHit*>::iterator apsc;
+      for (apsc = digi_hits.begin(); apsc != digi_hits.end(); ++apsc) {
+         if ((*apsc)->counter_id == (*ipsc)->arm * 4 + (*ipsc)->module) {
+            psc_has_adc[npsc] = 1;
+            psc_tadc[npsc] = (*apsc)->pulse_time;
+            psc_pmax[npsc] = (*apsc)->pulse_peak;
+            psc_ped[npsc] = (*apsc)->pedestal;
+            psc_qf[npsc] = (*apsc)->QF;
+            psc_nped[npsc] = (*apsc)->nsamples_pedestal;
+            psc_nint[npsc] = (*apsc)->nsamples_integral;
+            std::vector<const Df250PulseData*> pulse_data;
+            (*apsc)->Get(pulse_data);
+            std::vector<const Df250PulseData*>::iterator ppsc;
+            for (ppsc = pulse_data.begin(); ppsc != pulse_data.end(); ++ppsc) {
+               psc_toth[npsc] = (*ppsc)->nsamples_over_threshold * 4;
+               // f_qpedestal = ((*pps)->QF_pedestal)? 1 : 0;
+               // f_latepulse = ((*pps)->QF_NSA_beyond_PTW)? 1 : 0;
+               // f_underflow = ((*pps)->QF_underflow)? 1 : 0;
+               // f_overflow = ((*pps)->QF_overflow)? 1 : 0;
+               // f_notpeak = ((*pps)->QF_vpeak_beyond_NSA)? 1 : 0;
+               // f_nopeak = ((*pps)->QF_vpeak_not_found)? 1 : 0;
+               // f_badped = ((*pps)->QF_bad_pedestal)? 1 : 0;
+            }
+         }
+      }
+      std::vector<const DPSCTDCDigiHit*> tdc_hits;
+      (*ipsc)->Get(tdc_hits);
+      std::vector<const DPSCTDCDigiHit*>::iterator tpsc;
+      for (tpsc = tdc_hits.begin(); tpsc != tdc_hits.end(); ++tpsc) {
+         if ((*tpsc)->counter_id == (*ipsc)->arm * 4 + (*ipsc)->module) {
+            psc_has_tdc[npsc] = 1;
+            psc_ttdc[npsc] = (*tpsc)->time;
+         }
+      }
+      std::vector<unsigned short> trace;
+      std::vector<const Df250WindowRawData*>::iterator itrace;
+      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
+         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
+         const DTranslationTable::DChannelInfo chaninfo = GetDetectorIndex(ttab, csc);
+         if (chaninfo.det_sys == DTranslationTable::PSC) {
+            if ((int)chaninfo.psc.id == (*ipsc)->arm * 4 + (*ipsc)->module) {
+               trace = (*itrace)->samples;
+            }
+         }
+      }
+      ps_raw_waveform.push_back(trace);
+      npsc++;
+   }
+
    std::vector<const DBeamPhoton*> beams;
    eventLoop->Get(beams);
    std::vector<const DBeamPhoton*>::iterator ibeam;
@@ -567,26 +742,6 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       pstright[npairps] = (*ipair)->right->t;
       nleft_ps[npairps] = (*ipair)->right->ntiles;
       nright_ps[npairps] = (*ipair)->right->ntiles;
-
-      std::vector<unsigned short> ltrace;
-      std::vector<unsigned short> rtrace;
-      std::vector<const Df250WindowRawData*>::iterator itrace;
-      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
-         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
-         const DTranslationTable::DChannelInfo chaninfo = GetDetectorIndex(ttab, csc);
-         if (chaninfo.det_sys == DTranslationTable::PS && chaninfo.ps.side == 0) {
-            if ((int)chaninfo.ps.id == (*ipair)->left->column) {
-               ltrace = (*itrace)->samples;
-            }
-         }
-         else if (chaninfo.det_sys == DTranslationTable::PS && chaninfo.ps.side == 1) {
-            if ((int)chaninfo.ps.id == (*ipair)->right->column) {
-               rtrace = (*itrace)->samples;
-            }
-         }
-      }
-      psleft_raw_waveform.push_back(ltrace);
-      psright_raw_waveform.push_back(rtrace);
       ++npairps;
    }
 
@@ -637,24 +792,6 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
          pscright_ped[npairpsc] = (*apsc)->pedestal;
          pscright_qf[npairpsc] = (*apsc)->QF;
       }
-
-      std::vector<unsigned short> ltrace;
-      std::vector<unsigned short> rtrace;
-      std::vector<const Df250WindowRawData*>::iterator itrace;
-      for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
-         DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
-         const DTranslationTable::DChannelInfo chaninfo = GetDetectorIndex(ttab, csc);
-         if (chaninfo.det_sys == DTranslationTable::PSC) {
-            if ((int)chaninfo.psc.id == (*icpair)->ee.first->module) {
-               ltrace = (*itrace)->samples;
-            }
-            else if ((int)chaninfo.psc.id == (*icpair)->ee.second->module) {
-               rtrace = (*itrace)->samples;
-            }
-         }
-      }
-      pscleft_raw_waveform.push_back(ltrace);
-      pscright_raw_waveform.push_back(rtrace);
       npairpsc++;
    }
 
