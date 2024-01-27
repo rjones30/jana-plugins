@@ -643,7 +643,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    for (ipsc = psc_hits.begin(); ipsc != psc_hits.end(); ++ipsc) {
       psc_arm[npsc] = (*ipsc)->arm;
       psc_module[npsc] = (*ipsc)->module;
-      psc_counter[npsc] = ((*ipsc)->arm * 4 + (*ipsc)->module);
+      psc_counter[npsc] = ((*ipsc)->arm * 8 + (*ipsc)->module);
       psc_seqno[npsc] = npsc_per_counter[psc_counter[npsc]]++;
       psc_t[npsc] = (*ipsc)->t;
       psc_pint[npsc] = (*ipsc)->integral;
@@ -664,7 +664,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       (*ipsc)->Get(digi_hits);
       std::vector<const DPSCDigiHit*>::iterator apsc;
       for (apsc = digi_hits.begin(); apsc != digi_hits.end(); ++apsc) {
-         if ((*apsc)->counter_id == (*ipsc)->arm * 4 + (*ipsc)->module) {
+         if ((*apsc)->counter_id == (*ipsc)->arm * 8 + (*ipsc)->module) {
             psc_has_adc[npsc] = 1;
             psc_tadc[npsc] = (*apsc)->pulse_time;
             psc_pmax[npsc] = (*apsc)->pulse_peak;
@@ -691,7 +691,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       (*ipsc)->Get(tdc_hits);
       std::vector<const DPSCTDCDigiHit*>::iterator tpsc;
       for (tpsc = tdc_hits.begin(); tpsc != tdc_hits.end(); ++tpsc) {
-         if ((*tpsc)->counter_id == (*ipsc)->arm * 4 + (*ipsc)->module) {
+         if ((*tpsc)->counter_id == (*ipsc)->arm * 8 + (*ipsc)->module) {
             psc_has_tdc[npsc] = 1;
             psc_ttdc[npsc] = (*tpsc)->time;
          }
@@ -702,7 +702,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
          DTranslationTable::csc_t csc = {(*itrace)->rocid, (*itrace)->slot, (*itrace)->channel};
          const DTranslationTable::DChannelInfo chaninfo = GetDetectorIndex(ttab, csc);
          if (chaninfo.det_sys == DTranslationTable::PSC) {
-            if ((int)chaninfo.psc.id == (*ipsc)->arm * 4 + (*ipsc)->module) {
+            if ((int)chaninfo.psc.id == (*ipsc)->arm * 8 + (*ipsc)->module) {
                trace = (*itrace)->samples;
             }
          }
