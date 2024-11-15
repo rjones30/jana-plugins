@@ -7,8 +7,10 @@
 
 #include <JANA/JEventProcessor.h>
 #include <TTAB/DTranslationTable.h>
+#include <DAQ/DBeamCurrent_factory.h>
 #include <TTree.h>
 #include <TH1S.h>
+#include <TH1D.h>
 #include <vector>
 
 class JEventProcessor_PStagstudy:public jana::JEventProcessor
@@ -28,6 +30,15 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    int runno;
    int eventno;
    unsigned long int timestamp;
+   unsigned long int epochtime;
+   unsigned long int epoch_reference;
+   unsigned long int bctime;
+   float beamcurrent;
+
+   DBeamCurrent_factory *bc_factory;
+
+   TH1D *tagm_hpedestal[128];
+   TH1D *tagh_hpedestal[300];
 
    int nrf;
    int rf_sys[999];
@@ -45,6 +56,10 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    float tagm_time[999];
    float tagm_pmax[999];
    float tagm_ped[999];
+   float tagm_tlast[999];
+   float tagm_plast[999];
+   float tagm_base[999];
+   float tagm_rothr[999];
    int tagm_multi[999];
    int tagm_qf[999];
    int tagm_bg[999];
@@ -66,6 +81,10 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
    float tagh_time[999];
    float tagh_pmax[999];
    float tagh_ped[999];
+   float tagh_tlast[999];
+   float tagh_plast[999];
+   float tagh_base[999];
+   float tagh_rothr[999];
    int tagh_multi[999];
    int tagh_qf[999];
    int tagh_bg[999];
