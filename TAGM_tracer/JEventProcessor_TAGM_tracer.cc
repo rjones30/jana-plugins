@@ -10,9 +10,8 @@
 
 #include "JEventProcessor_TAGM_tracer.h"
 #include <JANA/JApplication.h>
+#include <JANA/Services/JLockService.h>
 
-using namespace std;
-using namespace jana;
 
 #include <TAGGER/DTAGMHit.h>
 #include <TAGGER/DTAGMDigiHit.h>
@@ -30,7 +29,7 @@ using namespace jana;
 extern "C"{
   void InitPlugin(JApplication *app) {
     InitJANAPlugin(app);
-    app->AddProcessor(new JEventProcessor_TAGM_tracer());
+    app->Add(new JEventProcessor_TAGM_tracer());
   }
 }
 
@@ -43,10 +42,12 @@ JEventProcessor_TAGM_tracer::JEventProcessor_TAGM_tracer()
 JEventProcessor_TAGM_tracer::~JEventProcessor_TAGM_tracer() {
 }
 
-jerror_t JEventProcessor_TAGM_tracer::init(void) {
+void JEventProcessor_TAGM_tracer::Init() {
 
   // lock all root operations
-  japp->RootWriteLock();
+  auto app = GetApplication();
+  auto lock_svc = app->GetService<JLockService>();
+  lock_svc->RootWriteLock();
 
   ttagm = new TTree("ttagm", "tagm hit times");
   ttagm->Branch("row", &tagm_row, "row/I");
@@ -65,23 +66,23 @@ jerror_t JEventProcessor_TAGM_tracer::init(void) {
   tps->Branch("time", &psc_time, "time/D");
 
   // unlock
-  japp->RootUnLock();
-
-  return NOERROR;
+  lock_svc->RootUnLock();
 }
 
 
-jerror_t JEventProcessor_TAGM_tracer::brun(JEventLoop *eventLoop, int32_t runnumber) {
-  // This is called whenever the run number changes
-  return NOERROR;
+void JEventProcessor_TAGM_tracer::BeginRun(const std::shared_ptr<const JEvent>& event) {
 }
 
-jerror_t JEventProcessor_TAGM_tracer::evnt(JEventLoop *eventLoop, uint64_t eventnumber) {
+
+void JEventProcessor_TAGM_tracer::Process(const std::shared_ptr<const JEvent>& event) {
   // This is called for every event. Use of common resources like writing
   // to a file or filling a histogram should be mutex protected. Using
-  // loop-Get(...) to get reconstructed objects (and thereby activating the
+  // loop->Get(...) to get reconstructed objects (and thereby activating the
   // reconstruction algorithm) should be done outside of any mutex lock
   // since multiple threads may call this method at the same time.
+ 
+  auto app = GetApplication();
+  auto lock_svc = app->GetService<JLockService>();
 
   static double f1tdc_hires_tick = (32/152.)*(128/232.)/2; // ns
   // for details on where these values come from,
@@ -89,11 +90,9 @@ jerror_t JEventProcessor_TAGM_tracer::evnt(JEventLoop *eventLoop, uint64_t event
   static double f1tdc_rollover_period = f1tdc_hires_tick * 64467;
   static double timestamp_clock_period = 4; // ns
 
-  japp->RootWriteLock();
-
   event_time = 0;
   std::vector<const DCODAROCInfo*> rocinfos;
-  eventLoop->Get(rocinfos);
+  event->Get(rocinfos);
   std::vector<const DCODAROCInfo*>::iterator itroc;
   for (itroc = rocinfos.begin(); itroc != rocinfos.end(); ++itroc) {
     if ((*itroc)->rocid == 75)  { // this is the tagger tdc crate
@@ -108,7 +107,7 @@ jerror_t JEventProcessor_TAGM_tracer::evnt(JEventLoop *eventLoop, uint64_t event
     tagm_rftick = 0;
     tagm_rftime = 0;
     std::vector<const DRFTDCDigiTime*> rftdcs;
-    eventLoop->Get(rftdcs);
+    event->Get(rftdcs);
     std::vector<const DRFTDCDigiTime*>::iterator itrf;
     for (itrf = rftdcs.begin(); itrf != rftdcs.end(); ++itrf) {
        if ((*itrf)->dSystem == SYS_TAGH) {
@@ -119,9 +118,9 @@ jerror_t JEventProcessor_TAGM_tracer::evnt(JEventLoop *eventLoop, uint64_t event
        }
     }
     std::vector<const DF1TDCTriggerTime*> triggers;
-    eventLoop->Get(triggers);
+    event->Get(triggers);
     std::vector<const DTAGMTDCDigiHit*> tagmtdcs;
-    eventLoop->Get(tagmtdcs);
+    event->Get(tagmtdcs);
     std::vector<const DTAGMTDCDigiHit*>::iterator iter;
     for (iter = tagmtdcs.begin(); iter != tagmtdcs.end(); ++iter) {
       tagm_f1trig = 0;
@@ -146,7 +145,7 @@ jerror_t JEventProcessor_TAGM_tracer::evnt(JEventLoop *eventLoop, uint64_t event
       ttagm->Fill();
     }
     std::vector<const DPSCTDCDigiHit*> psctdcs;
-    eventLoop->Get(psctdcs);
+    event->Get(psctdcs);
     std::vector<const DPSCTDCDigiHit*>::iterator itpsc;
     for (itpsc = psctdcs.begin(); itpsc != psctdcs.end(); ++itpsc) {
       psc_tick = (*itpsc)->time;
@@ -154,23 +153,13 @@ jerror_t JEventProcessor_TAGM_tracer::evnt(JEventLoop *eventLoop, uint64_t event
       tps->Fill();
     }
   }
-  japp->RootUnLock();
-
-  return NOERROR;
+  lock_svc->RootUnLock();
 }
 
-jerror_t JEventProcessor_TAGM_tracer::erun(void) {
-  // This is called whenever the run number changes, before it is
-  // changed to give you a chance to clean up before processing
-  // events from the next run number.
-  return NOERROR;
+
+void JEventProcessor_TAGM_tracer::EndRun() {
 }
 
-jerror_t JEventProcessor_TAGM_tracer::fini(void) {
-  // Called before program exit after event processing is finished.
-  japp->RootWriteLock();
-  ttagm->Write();
-  tevent->Write();
-  japp->RootUnLock();
-  return NOERROR;
+
+void JEventProcessor_TAGM_tracer::Finish() {
 }

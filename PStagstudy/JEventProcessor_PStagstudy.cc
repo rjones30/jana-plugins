@@ -7,12 +7,16 @@
 #include <iostream>
 #include <stdint.h>
 #include <vector>
+#include <map>
 #include <utility>
 #include <TMath.h>
 #include <TInterpreter.h>
+#include <TTree.h>
+#include <TFile.h>
 
 #include "JEventProcessor_PStagstudy.h"
 #include <JANA/JApplication.h>
+#include <JANA/Services/JLockService.h>
 
 using namespace std;
 using namespace jana;
@@ -45,6 +49,12 @@ using namespace jana;
 #include "rxConnection.h"
 
 std::vector<std::pair<uint32_t, uint32_t> > epoch_time_limits;
+std::map<uint32_t, uint32_t> beam_current_from_epics;
+std::string beam_current_record_url("root://cn445.storrs.hpc.uconn.edu"
+                                   "/Gluex/resilient/resources/"
+                                   "HallD_beam_current_record-11-15-2024.root");
+std::string beam_current_record_tree("beamcur");
+unsigned long int max_run_duration(100000);
 
 // The individual fadc250 readout thresholds are stored separately and
 // loaded into the frontend modules by the CODA daq at run start time.
@@ -263,12 +273,12 @@ void report_bad_pmax(const DTAGMHit *itagm) {
 extern "C"{
    void InitPlugin(JApplication *app) {
      InitJANAPlugin(app);
-     app->AddProcessor(new JEventProcessor_PStagstudy());
+     app->Add(new JEventProcessor_PStagstudy());
    }
 }
 
 JEventProcessor_PStagstudy::JEventProcessor_PStagstudy()
- : pstags(0), lockflag(0)
+ : pstags(0)
 {
 }
 
@@ -276,27 +286,6 @@ JEventProcessor_PStagstudy::JEventProcessor_PStagstudy()
 JEventProcessor_PStagstudy::~JEventProcessor_PStagstudy() {
 }
 
-void JEventProcessor_PStagstudy::lock() {
-   japp->RootWriteLock();
-   if (lockflag) {
-      std::cerr << "Error in JEventProcessor_PStagstudy::lock() - "
-                   "deadlock!" << std::endl;
-   }
-   else {
-      lockflag = 1;
-   }
-}
-
-void JEventProcessor_PStagstudy::unlock() {
-   if (lockflag == 0) {
-      std::cerr << "Error in JEventProcessor_PStagstudy::evnt() - "
-                   "double unlock!" << std::endl;
-   }
-   else {
-      lockflag = 0;
-   }
-   japp->RootUnLock();
-}
 
 const DTranslationTable::DChannelInfo
 JEventProcessor_PStagstudy::GetDetectorIndex(const DTranslationTable *ttab,
@@ -312,8 +301,12 @@ JEventProcessor_PStagstudy::GetDetectorIndex(const DTranslationTable *ttab,
    return index;
 }
 
-jerror_t JEventProcessor_PStagstudy::init(void) {
-   lock();
+void JEventProcessor_PStagstudy::Init() {
+
+   // lock all root operations
+   auto app = GetApplication();
+   auto lock_svc = app->GetService<JLockService>();
+   lock_svc->RootWriteLock();
 
    std::ifstream tlimits("epoch_time_limits");
    int t0, t1;
@@ -329,7 +322,7 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    }
 
    bc_factory = new DBeamCurrent_factory();
-   bc_factory->init();
+   bc_factory->Init();
 
    gInterpreter->GenerateDictionary("std::vector<std::vector<unsigned short> >", "vector"); 
 
@@ -338,6 +331,7 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
    pstags->Branch("eventno", &eventno, "eventno/i");
    pstags->Branch("timestamp", &timestamp, "timestamp/l");
    pstags->Branch("epochtime", &epochtime, "epochtime/l");
+   pstags->Branch("beamcurrent", &beamcurrent, "beamcurrent/i");
 
    pstags->Branch("nrf", &nrf, "nrf/I[0,999]");
    pstags->Branch("rf_sys", rf_sys, "rf_sys[nrf]/I");
@@ -496,16 +490,20 @@ jerror_t JEventProcessor_PStagstudy::init(void) {
       }
    }
 
-   unlock();
-   return NOERROR;
+   // unlock
+   lock_svc->RootUnLock();
 }
 
-//------------------
-// brun
-//------------------
-jerror_t JEventProcessor_PStagstudy::brun(JEventLoop *eventLoop, int32_t runnumber)
-{
-   bc_factory->brun(eventLoop, runnumber);
+
+void JEventProcessor_PStagstudy::BeginRun(const std::shared_ptr<const JEvent>& event) {
+
+   // lock all root operations
+   auto app = GetApplication();
+   auto lock_svc = app->GetService<JLockService>();
+   lock_svc->RootWriteLock();
+
+   bc_factory->BeginRun(event);
+   int runno = event->GetRunNumber();
 
    string RCDB_CONNECTION;
    if (getenv("RCDB_CONNECTION")!= NULL)
@@ -514,72 +512,78 @@ jerror_t JEventProcessor_PStagstudy::brun(JEventLoop *eventLoop, int32_t runnumb
       RCDB_CONNECTION = "mysql://rcdb@hallddb.jlab.org/rcdb";   // default to outward-facing MySQL DB
 
    rcdb::rxConnection rcdbconn(RCDB_CONNECTION);
-   epoch_reference = rcdbconn.GetRunStartTime(runnumber);
-   return NOERROR;
+   epoch_reference = rcdbconn.GetRunStartTime(runno);
+
+   beam_current_from_epics.clear();
+   TFile *bcfile = TFile::Open(beam_current_record_url.c_str());
+   if (!bcfile || bcfile->IsZombie()) {
+      std::cout << "JEventProcessor_PStagstudy::brun error - "
+                << "failed to open EPICS beam current record at url "
+                << beam_current_record_url << std::endl
+                << "...continuing on without beam current information from EPICS"
+                << std::endl;
+      return;
+   }
+   TTree *bctree = dynamic_cast<TTree*>(bcfile->Get(beam_current_record_tree.c_str()));
+   if (!bctree) {
+      std::cout << "JEventProcessor_PStagstudy::brun error - "
+                << "failed to read tree " << beam_current_record_tree
+                << " from " << beam_current_record_url << std::endl
+                << "...continuing on without beam current information from EPICS"
+                << std::endl;
+      bcfile->Close();
+      return;
+   }
+   uint32_t tepoch_s;
+   uint32_t ibeam_nA;
+   bctree->SetBranchAddress("tepoch", &tepoch_s);
+   bctree->SetBranchAddress("ibeam", &ibeam_nA);
+   uint64_t nentries = bctree->GetEntries();
+   for (uint64_t i=0; i < nentries; ++i) {
+      bctree->GetEntry(i);
+      if (tepoch_s >= epoch_reference)
+         beam_current_from_epics[tepoch_s] = ibeam_nA;
+      if (tepoch_s > epoch_reference + max_run_duration)
+         break;
+   }
+   bcfile->Close();
+   std::cout << "JEventProcessor_PStagstudy::brun read "
+             << beam_current_from_epics.size() << " records"
+             << " from EPICS for run " << runno << std::endl;
+ 
+   // unlock
+   lock_svc->RootUnLock();
 }
 
-jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventnumber) {
+
+void JEventProcessor_PStagstudy::Process(const std::shared_ptr<const JEvent>& event) {
    // This is called for every event. Use of common resources like writing
    // to a file or filling a histogram should be mutex protected. Using
-   // loop-Get(...) to get reconstructed objects (and thereby activating the
+   // event->Get(...) to get reconstructed objects (and thereby activating the
    // reconstruction algorithm) should be done outside of any mutex lock
    // since multiple threads may call this method at the same time.
 
-   std::vector<const DCODAControlEvent*> controls;
-   eventLoop->Get(controls);
-   std::vector<const DCODAControlEvent*>::iterator ictrl;
-   for (ictrl = controls.begin(); ictrl != controls.end(); ++ictrl) {
-      std::cout << "found control event with unix_time "
-                << (*ictrl)->unix_time << std::endl;
-      epoch_reference = (*ictrl)->unix_time;
-   } 
-
-   bc_factory->evnt(eventLoop, eventnumber);
+   bc_factory->Process(event);
    double ticks_per_sec = bc_factory->ticks_per_sec;
 
-   std::vector<const DBeamCurrent*> currents;
-   eventLoop->Get(currents);
-   std::vector<const DBeamCurrent*>::iterator icur;
-   for (icur = currents.begin(); icur != currents.end(); ++icur) {
-      std::cout << "found DBeamCurrent with unix_time "
-                << (*ictrl)->unix_time << std::endl;
-      beamcurrent = (*icur)->Ibeam;
-      bctime = (*icur)->t;
-   } 
-
    std::vector<const DCODAEventInfo*> event_info;
-   eventLoop->Get(event_info);
-   if (event_info.size() == 0)
-      return NOERROR;
-
-   runno = event_info[0]->run_number;
-   eventno = event_info[0]->event_number;
-   timestamp = event_info[0]->avg_timestamp;
-
-   epochtime = epoch_reference + timestamp/ticks_per_sec;
-   int within_time_limits = 0;
-   for (auto titer : epoch_time_limits) {
-      if (epochtime > titer.first and epochtime < titer.second) {
-         ++within_time_limits;
-      }
-   }
-   if (! within_time_limits) {
-      if ((eventno % 100000) < 2)
-         std::cerr << "event " << eventno << " is outside time limits, discarding" << std::endl;
-      return NOERROR;
+   event->Get(event_info);
+   if (event_info.size() == 0) {
+      return;
    }
 
    std::vector<const DTSscalers*> scalers;
-   eventLoop->Get(scalers);
+   event->Get(scalers);
    std::vector<const DTSscalers*>::iterator isc;
    for (isc = scalers.begin(); isc != scalers.end(); ++isc) {
       std::cout << "scalers found with time " << (*isc)->time << std::endl;
    }
+
    // only examine PS triggers
    const DL1Trigger *trig_words = 0;
    uint32_t trig_mask, fp_trig_mask;
    try {
-      eventLoop->GetSingle(trig_words);
+      event->GetSingle(trig_words);
    } catch(...) {};
    if (trig_words) {
       trig_mask = trig_words->trig_mask;
@@ -592,20 +596,57 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    int trig_bits = fp_trig_mask > 0 ? 10 + fp_trig_mask : trig_mask;
 #ifdef SELECT_TRIGGER_TYPE
    if ((trig_bits & (1 << SELECT_TRIGGER_TYPE)) == 0)
-      return NOERROR;
-#else
-   if (trig_bits == 0)
-      trig_bits = 0;
+      return;
 #endif
  
-   lock();
+   auto app = GetApplication();
+   auto lock_svc = app->GetService<JLockService>();
 
    runno = event_info[0]->run_number;
    eventno = event_info[0]->event_number;
    timestamp = event_info[0]->avg_timestamp;
+   trigger = trig_bits;
+
+   std::vector<const DCODAControlEvent*> controls;
+   event->Get(controls);
+   std::vector<const DCODAControlEvent*>::iterator ictrl;
+   for (ictrl = controls.begin(); ictrl != controls.end(); ++ictrl) {
+      std::cout << "found control event with unix_time "
+                << (*ictrl)->unix_time << std::endl;
+      epoch_reference = (*ictrl)->unix_time;
+   } 
+
+   std::vector<const DBeamCurrent*> currents;
+   event->Get(currents);
+   std::vector<const DBeamCurrent*>::iterator icur;
+   for (icur = currents.begin(); icur != currents.end(); ++icur) {
+      std::cout << "found DBeamCurrent with unix_time "
+                << (*ictrl)->unix_time << std::endl;
+      beamcurrent = (*icur)->Ibeam;
+      bctime = (*icur)->t;
+   } 
+
+   epochtime = epoch_reference + timestamp/ticks_per_sec;
+   int within_time_limits = 0;
+   for (auto titer : epoch_time_limits) {
+      if (epochtime > titer.first and epochtime < titer.second) {
+         ++within_time_limits;
+      }
+   }
+   if (! within_time_limits) {
+      if ((eventno % 100000) < 2)
+         std::cerr << "event " << eventno << " is outside time limits, discarding" << std::endl;
+      lock_svc->RootUnLock();
+      return;
+   }
+
+   if (beam_current_from_epics.size() > 0) {
+      auto it = beam_current_from_epics.lower_bound(epochtime);
+      beamcurrent = it->second;
+   }
 
    std::vector<const DRFTime*> rf_times;
-   eventLoop->Get(rf_times, "PSC");
+   event->Get(rf_times, "PSC");
    std::vector<const DRFTime*>::iterator irf;
    nrf = 0;
    for (irf = rf_times.begin(); irf != rf_times.end(); ++irf) {
@@ -613,7 +654,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
       rf_time[nrf] = (*irf)->dTime;
       nrf++;
    }
-   eventLoop->Get(rf_times, "TAGH");
+   event->Get(rf_times, "TAGH");
    for (irf = rf_times.begin(); irf != rf_times.end(); ++irf) {
       rf_sys[nrf] = 0x800;
       rf_time[nrf] = (*irf)->dTime;
@@ -622,16 +663,16 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
 
    // get the raw window data, if any
    std::vector<const Df250WindowRawData*> traces;
-   eventLoop->Get(traces);
+   event->Get(traces);
 
    std::vector<const DTranslationTable*> ttables;
-   eventLoop->Get(ttables);
+   event->Get(ttables);
    if (ttables.size() != 1) {
       std::cout << "Serious error in PStagstudy plugin - "
                 << "unable to acquire the DAQ translation table!"
                 << std::endl;
-      unlock();
-      return NOERROR;
+      lock_svc->RootUnLock();
+      return;
    }
    const DTranslationTable *ttab = ttables[0];
 
@@ -641,7 +682,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    psc_raw_waveform.clear();
 
    std::vector<const DTAGMHit*> tagm_hits;
-   eventLoop->Get(tagm_hits, "Calib");
+   event->Get(tagm_hits, "Calib");
    std::vector<std::vector<float> > timelist;
    std::vector<std::vector<float> > peaklist;
    for (int i=0; i < tagm_fadc250_channels; ++i) {
@@ -664,6 +705,8 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
             tagm_plast[ntagm] = peaklist[channel][i];
          }
       }
+      timelist[channel].push_back((*itagm)->time_fadc);
+      peaklist[channel].push_back((*itagm)->pulse_peak);
       tagm_rothr[ntagm] = tagm_fadc250_readout_threshold[channel];
       tagm_seqno[ntagm] = ntagm_per_channel[row][column]++;
       tagm_channel[ntagm] = column + row * 1000;
@@ -739,6 +782,8 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
                tagm_plast[ntagm] = peaklist[channel][i];
             }
          }
+         timelist[channel].push_back((*jtagm)->time_fadc);
+         peaklist[channel].push_back((*jtagm)->pulse_peak);
          tagm_rothr[ntagm] = tagm_fadc250_readout_threshold[channel];
          tagm_peak[ntagm] = (*jtagm)->pulse_peak;
          tagm_pint[ntagm] = (*jtagm)->integral;
@@ -807,7 +852,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    }
 
    std::vector<const DTAGHHit*> tagh_hits;
-   eventLoop->Get(tagh_hits, "Calib");
+   event->Get(tagh_hits, "Calib");
    timelist.clear();
    peaklist.clear();
    for (int i=0; i < tagh_fadc250_channels; ++i) {
@@ -830,6 +875,8 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
             tagh_plast[ntagh] = peaklist[channel][i];
          }
       }
+      timelist[channel].push_back((*itagh)->time_fadc);
+      peaklist[channel].push_back((*itagh)->pulse_peak);
       tagh_rothr[ntagh] = tagh_fadc250_readout_threshold[channel];
       tagh_peak[ntagh] = (*itagh)->pulse_peak;
       tagh_pint[ntagh] = (*itagh)->integral;
@@ -897,6 +944,8 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
                tagh_plast[ntagh] = peaklist[channel][i];
             }
          }
+         timelist[channel].push_back((*jtagh)->time_fadc);
+         peaklist[channel].push_back((*jtagh)->pulse_peak);
          tagh_rothr[ntagh] = tagh_fadc250_readout_threshold[channel];
          tagh_seqno[ntagh] = ntagh_per_counter[(*jtagh)->counter_id]++;
          tagh_counter[ntagh] = (*jtagh)->counter_id;
@@ -965,7 +1014,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    }
 
    std::vector<const DPSHit*> ps_hits;
-   eventLoop->Get(ps_hits);
+   event->Get(ps_hits);
    std::vector<const DPSHit*>::iterator ips;
    int nps_per_counter[512] = {0};
    nps = 0;
@@ -1028,7 +1077,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    }
 
    std::vector<const DPSCHit*> psc_hits;
-   eventLoop->Get(psc_hits);
+   event->Get(psc_hits);
    std::vector<const DPSCHit*>::iterator ipsc;
    int npsc_per_counter[512] = {0};
    npsc = 0;
@@ -1104,7 +1153,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    }
 
    std::vector<const DBeamPhoton*> beams;
-   eventLoop->Get(beams);
+   event->Get(beams);
    std::vector<const DBeamPhoton*>::iterator ibeam;
    nbeam = 0;
    for (ibeam = beams.begin(); ibeam != beams.end(); ++ibeam) {
@@ -1116,7 +1165,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    }
 
    std::vector<const DPSPair*> ps_pairs;
-   eventLoop->Get(ps_pairs);
+   event->Get(ps_pairs);
    std::vector<const DPSPair*>::iterator ipair;
    npairps = 0;
    for (ipair = ps_pairs.begin(); ipair != ps_pairs.end(); ++ipair) {
@@ -1138,7 +1187,7 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
    }
 
    std::vector<const DPSCPair*> psc_pairs;
-   eventLoop->Get(psc_pairs);
+   event->Get(psc_pairs);
    std::vector<const DPSCPair*>::iterator icpair;
    int npsc_per_module[2][9] = {0};
    double tpsc_per_module[2][9] = {0};
@@ -1193,19 +1242,13 @@ jerror_t JEventProcessor_PStagstudy::evnt(JEventLoop *eventLoop, uint64_t eventn
 #endif
    pstags->Fill();
 
-   unlock();
-   return NOERROR;
+   lock_svc->RootUnLock();
 }
 
-jerror_t JEventProcessor_PStagstudy::erun(void) {
-   return NOERROR;
+
+void JEventProcessor_PStagstudy::EndRun() {
 }
 
-jerror_t JEventProcessor_PStagstudy::fini(void) {
-   lock();
 
-   pstags->Write();
-
-   unlock();
-   return NOERROR;
+void JEventProcessor_PStagstudy::Finish() {
 }

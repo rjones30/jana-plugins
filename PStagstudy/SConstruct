@@ -5,7 +5,7 @@
 # This SConstruct file can be copied into a directory containing
 # the source for a plugin and used to compile it. It will use and
 # install into the directory specified by the HALLD_MY environment
-# variable if defined. Otherwise, it will install in the 
+# variable if defined. Otherwise, it will install in the
 # HALLD_RECON_HOME directory.
 #
 # This file should not need modification. It will be copied in by
@@ -51,7 +51,7 @@ SHOWBUILD = ARGUMENTS.get('SHOWBUILD', 0)
 osname = os.getenv('BMS_OSNAME', 'build')
 
 # Get architecture name
-arch = subprocess.Popen(["uname"], stdout=subprocess.PIPE).communicate()[0].strip()
+arch = subprocess.Popen(["uname"], stdout=subprocess.PIPE).communicate()[0].strip().decode()
 
 # Setup initial environment
 installdir = "%s/%s" %(halld_my, osname)
@@ -59,7 +59,8 @@ include = "%s/include" % (installdir)
 bin = "%s/bin" % (installdir)
 lib = "%s/lib" % (installdir)
 plugins = "%s/plugins" % (installdir)
-env = Environment(    CPPPATH = [include],
+env = Environment(        ENV = os.environ,  # Bring in full environment, including PATH
+                      CPPPATH = [include],
                       LIBPATH = ["%s/%s/lib" %(halld_home, osname)],  # n.b. add HALLD_RECON_HOME here and prepend HALLD_MY below
                   variant_dir = ".%s" % (osname))
 
@@ -111,8 +112,10 @@ env.PrependUnique(      CFLAGS = ['-g', '-fPIC', '-Wall'])
 env.PrependUnique(    CXXFLAGS = ['-g', '-fPIC', '-Wall'])
 env.PrependUnique(FORTRANFLAGS = ['-g', '-fPIC', '-Wall'])
 
+env.PrependUnique(    CXXFLAGS = ['-std=c++11'])
+
 # Apply any platform/architecture specific settings
-sbms.ApplyPlatformSpecificSettings(env, arch.decode())
+sbms.ApplyPlatformSpecificSettings(env, arch)
 sbms.ApplyPlatformSpecificSettings(env, osname)
 
 # Make plugin from source in this directory

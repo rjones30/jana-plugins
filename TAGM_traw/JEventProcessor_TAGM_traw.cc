@@ -7,8 +7,11 @@
 #include "JEventProcessor_TAGM_traw.h"
 #include <JANA/JApplication.h>
 #include <TAGGER/DTAGMDigiHit.h>
+#include <TRIGGER/DL1Trigger.h>
 #include <DAQ/Df250WindowRawData.h>
 #include <RF/DRFTime.h>
+
+#include <JANA/Services/JLockService.h>
 
 int fadc_column[] = {  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
                        0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -36,9 +39,9 @@ int fadc_row[] = {  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  
 
 // Routine used to create our JEventProcessor
 extern "C"{
-  void InitPlugin(jana::JApplication *app) {
+  void InitPlugin(JApplication *app) {
     InitJANAPlugin(app);
-    app->AddProcessor(new JEventProcessor_TAGM_traw());
+    app->Add(new JEventProcessor_TAGM_traw());
   }
 }
 
@@ -51,14 +54,17 @@ JEventProcessor_TAGM_traw::~JEventProcessor_TAGM_traw() {
 }
 
 
-jerror_t JEventProcessor_TAGM_traw::init(void) {
+void JEventProcessor_TAGM_traw::Init() {
 
   // lock all root operations
-  japp->RootWriteLock();
+  auto app = GetApplication();
+  auto lock_svc = app->GetService<JLockService>();
+  lock_svc->RootWriteLock();
 
   fTraw = new TTree("fadc","");
   fTraw->Branch("runno", &runno, "runno/I");
   fTraw->Branch("eventno", &eventno, "eventno/I");
+  fTraw->Branch("trigger", &trigger, "trigger/I");
   fTraw->Branch("nhits", &nhits, "nhits/I");
   fTraw->Branch("nraw", &nraw, "nraw/I");
   fTraw->Branch("row", &row, "row/I");
@@ -78,40 +84,54 @@ jerror_t JEventProcessor_TAGM_traw::init(void) {
   fTraw->Branch("rftime", &rftime, "rftime/D");
 
   // unlock
-  japp->RootUnLock();
-
-  return NOERROR;
+  lock_svc->RootUnLock();
 }
 
 
-jerror_t JEventProcessor_TAGM_traw::brun(jana::JEventLoop *eventLoop, int runnumber) {
-  // This is called whenever the run number changes
-  return NOERROR;
+void JEventProcessor_TAGM_traw::BeginRun(const std::shared_ptr<const JEvent>& event) {
 }
 
 
-jerror_t JEventProcessor_TAGM_traw::evnt(jana::JEventLoop *eventLoop, uint64_t eventnumber) {
+void JEventProcessor_TAGM_traw::Process(const std::shared_ptr<const JEvent>& event) {
   // This is called for every event. Use of common resources like writing
   // to a file or filling a histogram should be mutex protected. Using
   // loop->Get(...) to get reconstructed objects (and thereby activating the
   // reconstruction algorithm) should be done outside of any mutex lock
   // since multiple threads may call this method at the same time.
  
-  japp->RootWriteLock();
-  runno = eventLoop->GetJEvent().GetRunNumber();
-  eventno = eventLoop->GetJEvent().GetEventNumber();
+  auto app = GetApplication();
+  auto lock_svc = app->GetService<JLockService>();
+
+  runno = event->GetRunNumber();
+  eventno = event->GetEventNumber();
+
+  const DL1Trigger *trig_words = 0;
+  uint32_t trig_mask, fp_trig_mask;
+  try {
+     event->GetSingle(trig_words);
+  } catch(...) {};
+  if (trig_words) {
+     trig_mask = trig_words->trig_mask;
+     fp_trig_mask = trig_words->fp_trig_mask;
+  }
+  else {
+     trig_mask = 0;
+     fp_trig_mask = 0;
+  }
+  trigger = fp_trig_mask > 0 ? 10 + fp_trig_mask : trig_mask;
+
   std::vector<const DRFTime*> rf_times;
   std::vector<const DRFTime*>::const_iterator irf;
-  eventLoop->Get(rf_times, "TAGH");
+  event->Get(rf_times, "TAGH");
   for (irf = rf_times.begin(); irf != rf_times.end(); ++irf) {
     rftime = (*irf)->dTime;
   }
 
   std::vector<const DTAGMDigiHit*> hits;
   std::vector<const Df250WindowRawData*> raw;
-  eventLoop->Get(hits);
+  event->Get(hits);
   nhits = hits.size();
-  eventLoop->Get(raw);
+  event->Get(raw);
   nraw = 0;
   std::vector<const Df250WindowRawData*>::iterator riter;
   for (riter = raw.begin(); riter != raw.end(); ++riter) {
@@ -121,8 +141,8 @@ jerror_t JEventProcessor_TAGM_traw::evnt(jana::JEventLoop *eventLoop, uint64_t e
     ++nraw;
   }
   if (nraw < 25) {
-    japp->RootUnLock();
-    return NOERROR;
+    lock_svc->RootUnLock();
+    return;
   }
 
   for (riter = raw.begin(); riter != raw.end(); ++riter) {
@@ -152,21 +172,13 @@ jerror_t JEventProcessor_TAGM_traw::evnt(jana::JEventLoop *eventLoop, uint64_t e
     }
     fTraw->Fill();
   }
-  japp->RootUnLock();
-  return NOERROR;
+  lock_svc->RootUnLock();
 }
 
 
-jerror_t JEventProcessor_TAGM_traw::erun(void) {
-  // This is called whenever the run number changes, before it is
-  // changed to give you a chance to clean up before processing
-  // events from the next run number.
-  fTraw->Write();
-  return NOERROR;
+void JEventProcessor_TAGM_traw::EndRun() {
 }
 
 
-jerror_t JEventProcessor_TAGM_traw::fini(void) {
-  // Called before program exit after event processing is finished.
-  return NOERROR;
+void JEventProcessor_TAGM_traw::Finish() {
 }

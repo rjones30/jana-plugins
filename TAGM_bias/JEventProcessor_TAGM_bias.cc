@@ -6,7 +6,8 @@
 //
 
 #include "JEventProcessor_TAGM_bias.h"
-using namespace jana;
+
+#include <JANA/Services/JLockService.h>
 
 #include "TAGGER/DTAGMDigiHit.h"
 
@@ -21,126 +22,88 @@ static TH1I *h_source;
 #include <JANA/JApplication.h>
 #include <JANA/JFactory.h>
 extern "C"{
-void InitPlugin(JApplication *app){
-	InitJANAPlugin(app);
-	app->AddProcessor(new JEventProcessor_TAGM_bias());
-}
+   void InitPlugin(JApplication *app){
+      InitJANAPlugin(app);
+      app->Add(new JEventProcessor_TAGM_bias());
+   }
 } // "C"
 
 
-//------------------
-// JEventProcessor_TAGM_bias (Constructor)
-//------------------
-JEventProcessor_TAGM_bias::JEventProcessor_TAGM_bias()
-{
-
+JEventProcessor_TAGM_bias::JEventProcessor_TAGM_bias() {
 }
 
-//------------------
-// ~JEventProcessor_TAGM_bias (Destructor)
-//------------------
-JEventProcessor_TAGM_bias::~JEventProcessor_TAGM_bias()
-{
 
+JEventProcessor_TAGM_bias::~JEventProcessor_TAGM_bias() {
 }
 
-//------------------
-// init
-//------------------
-jerror_t JEventProcessor_TAGM_bias::init(void)
-{
-	// This is called once at program startup. 
 
-	for (uint32_t i = 0; i < NCOLUMNS; ++i)
-	{
-		h_spectra[i] = new TH1I(Form("h_spectra_%i", i+1),
-					Form("Pulse spectrum for col %i;\
-					Pulse height (ADC counts)", i+1),
-					4200, 0, 4200);
-	}
+void JEventProcessor_TAGM_bias::Init() {
 
-	h_source = new TH1I("source",";Datasource", 3, -0.5, 2.5);
-	return NOERROR;
+   // lock all root operations
+   auto app = GetApplication();
+   auto lock_svc = app->GetService<JLockService>();
+   lock_svc->RootWriteLock();
+
+   for (uint32_t i = 0; i < NCOLUMNS; ++i) {
+      h_spectra[i] = new TH1I(Form("h_spectra_%i", i+1),
+                              Form("Pulse spectrum for col %i;\
+                              Pulse height (ADC counts)", i+1),
+                              4200, 0, 4200);
+   }
+
+   h_source = new TH1I("source",";Datasource", 3, -0.5, 2.5);
+ 
+   // unlock
+   lock_svc->RootUnLock();
 }
 
-//------------------
-// brun
-//------------------
-jerror_t JEventProcessor_TAGM_bias::brun(JEventLoop *eventLoop, int32_t runnumber)
-{
-	// This is called whenever the run number changes
-	return NOERROR;
+
+void JEventProcessor_TAGM_bias::BeginRun(const std::shared_ptr<const JEvent>& event) {
 }
 
-//------------------
-// evnt
-//------------------
-jerror_t JEventProcessor_TAGM_bias::evnt(JEventLoop *loop, uint64_t eventnumber)
-{
-	// This is called for every event. Use of common resources like writing
-	// to a file or filling a histogram should be mutex protected. Using
-	// loop->Get(...) to get reconstructed objects (and thereby activating the
-	// reconstruction algorithm) should be done outside of any mutex lock
-	// since multiple threads may call this method at the same time.
-	// Here's an example:
-	//
-	// vector<const MyDataClass*> mydataclasses;
-	// loop->Get(mydataclasses);
-	//
-	// japp->RootFillLock(this);
-	//  ... fill historgrams or trees ...
-	// japp->RootFillUnLock(this);
 
-	vector<const DTAGMDigiHit*> digi_hits;
-	loop->Get( digi_hits );
+void JEventProcessor_TAGM_bias::Process(const std::shared_ptr<const JEvent>& event) {
+  // This is called for every event. Use of common resources like writing
+  // to a file or filling a histogram should be mutex protected. Using
+  // event->Get(...) to get reconstructed objects (and thereby activating the
+  // reconstruction algorithm) should be done outside of any mutex lock
+  // since multiple threads may call this method at the same time.
+ 
+   auto app = GetApplication();
+   auto lock_svc = app->GetService<JLockService>();
 
-	japp->RootFillLock(this);
 
-	for (uint32_t i = 0; i < digi_hits.size(); ++i)
-	{
-		const DTAGMDigiHit *digi = digi_hits[i];
-		int row = digi->row;
-		int col = digi->column;
-		//uint32_t pulse_integral = digi->pulse_integral;
-		uint32_t pulse_peak = digi->pulse_peak;
-		uint32_t t = digi->pulse_time;
-		uint32_t pedestal = digi->pedestal;
-		//uint32_t nsamp_int = digi->nsamples_integral;
-		uint32_t nsamp_ped = digi->nsamples_pedestal;
-		uint32_t datasource = digi->datasource;
+   std::vector<const DTAGMDigiHit*> digi_hits;
+   event->Get( digi_hits );
 
-		if (!pedestal > 0 || t == 0 || pulse_peak == 0 || !row == 0 || nsamp_ped == 0) continue;
+   for (uint32_t i = 0; i < digi_hits.size(); ++i) {
+      const DTAGMDigiHit *digi = digi_hits[i];
+      int row = digi->row;
+      int col = digi->column;
+      //uint32_t pulse_integral = digi->pulse_integral;
+      uint32_t pulse_peak = digi->pulse_peak;
+      uint32_t t = digi->pulse_time;
+      uint32_t pedestal = digi->pedestal;
+      //uint32_t nsamp_int = digi->nsamples_integral;
+      uint32_t nsamp_ped = digi->nsamples_pedestal;
+      uint32_t datasource = digi->datasource;
 
-		double ped = pedestal / nsamp_ped;
-		double peak = pulse_peak - ped;
+      if (pedestal <= 0 || t == 0 || pulse_peak == 0 || row != 0 || nsamp_ped == 0) continue;
 
-		h_source->Fill(datasource);
+      double ped = pedestal / nsamp_ped;
+      double peak = pulse_peak - ped;
+      h_source->Fill(datasource);
+      h_spectra[col - 1]->Fill(peak);
+   }
 
-		h_spectra[col - 1]->Fill(peak);
-	}
-
-	japp->RootFillUnLock(this);
-
-	return NOERROR;
+   lock_svc->RootUnLock();
 }
 
-//------------------
-// erun
-//------------------
-jerror_t JEventProcessor_TAGM_bias::erun(void)
-{
-	// This is called whenever the run number changes, before it is
-	// changed to give you a chance to clean up before processing
-	// events from the next run number.
-	return NOERROR;
+
+void JEventProcessor_TAGM_bias::EndRun() {
 }
 
-//------------------
-// fini
-//------------------
-jerror_t JEventProcessor_TAGM_bias::fini(void)
-{
-	// Called before program exit after event processing is finished.
-	return NOERROR;
+
+void JEventProcessor_TAGM_bias::Finish() {
 }
 

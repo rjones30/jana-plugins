@@ -11,13 +11,14 @@
 #include <JANA/JEventProcessor.h>
 #include <TTree.h>
 
-class JEventProcessor_TAGM_quadstudy:public jana::JEventProcessor{
-	public:
-		JEventProcessor_TAGM_quadstudy();
-		~JEventProcessor_TAGM_quadstudy();
-		const char* className(void){return "JEventProcessor_TAGM_quadstudy";}
+class JEventProcessor_TAGM_quadstudy : public JEventProcessor {
+ public:
+  JEventProcessor_TAGM_quadstudy();
+  ~JEventProcessor_TAGM_quadstudy();
+  const char* className(void){return "JEventProcessor_TAGM_quadstudy";}
 
     TTree *ttagm;
+
     int tagm_hits;
     int tagm_row[999];
     int tagm_column[999];
@@ -28,12 +29,12 @@ class JEventProcessor_TAGM_quadstudy:public jana::JEventProcessor{
     float ps_tleft[999];
     float ps_tright[999];
 
-	private:
-		jerror_t init(void);						///< Called once at program start.
-		jerror_t brun(jana::JEventLoop *eventLoop, int32_t runnumber);	///< Called everytime a new run number is detected.
-		jerror_t evnt(jana::JEventLoop *eventLoop, uint64_t eventnumber);	///< Called every event.
-		jerror_t erun(void);						///< Called everytime run number changes, provided brun has been called.
-		jerror_t fini(void);						///< Called after last event of last event source has been processed.
+ private:
+  void Init() override;
+  void BeginRun(const std::shared_ptr<const JEvent>& event) override;
+  void Process(const std::shared_ptr<const JEvent>& event) override;
+  void EndRun() override;
+  void Finish() override;
 };
 
 #endif // _JEventProcessor_TAGM_quadstudy_

@@ -10,19 +10,13 @@
 #include <TH1D.h>
 
 
-class JEventProcessor_TAGM_timing:public jana::JEventProcessor
-{
+class JEventProcessor_TAGM_timing : public JEventProcessor {
  public:
    JEventProcessor_TAGM_timing();
    ~JEventProcessor_TAGM_timing();
-   const char* className(void) {
-     return "JEventProcessor_TAGM_timing";
-   }
+   const char* className(void) { return "JEventProcessor_TAGM_timing"; }
 
    TTree *tags;
-   int lockflag;
-   void lock();
-   void unlock();
 
    // basic pulse parameters
    float adctime;      // fadc250 pulse time (ns) within PTW
@@ -58,11 +52,11 @@ class JEventProcessor_TAGM_timing:public jana::JEventProcessor
    TH1D *hpedestal[128];
 
  private:
-   jerror_t init(void);
-   jerror_t brun(jana::JEventLoop *eventLoop, int32_t runnumber);
-   jerror_t evnt(jana::JEventLoop *eventLoop, uint64_t eventnumber);
-   jerror_t erun(void);
-   jerror_t fini(void);
+   void Init() override;
+   void BeginRun(const std::shared_ptr<const JEvent>& event) override;
+   void Process(const std::shared_ptr<const JEvent>& event) override;
+   void EndRun() override;
+   void Finish() override;
 };
 
 #endif // _JEventProcessor_TAGM_timing_

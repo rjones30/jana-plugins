@@ -16,6 +16,8 @@
 using namespace std;
 using namespace jana;
 
+#include <JANA/Services/JLockService.h>
+
 #include <TAGGER/DTAGMHit.h>
 #include <TAGGER/DTAGMDigiHit.h>
 #include <TAGGER/DTAGMTDCDigiHit.h>
@@ -207,12 +209,12 @@ std::map<int, int> fadc250_channel_from_rowcolumn;
 extern "C"{
    void InitPlugin(JApplication *app) {
      InitJANAPlugin(app);
-     app->AddProcessor(new JEventProcessor_TAGM_timing());
+     app->Add(new JEventProcessor_TAGM_timing());
    }
 }
 
 JEventProcessor_TAGM_timing::JEventProcessor_TAGM_timing()
- : tags(0), lockflag(0)
+ : tags(0)
 {
 }
 
@@ -220,30 +222,13 @@ JEventProcessor_TAGM_timing::JEventProcessor_TAGM_timing()
 JEventProcessor_TAGM_timing::~JEventProcessor_TAGM_timing() {
 }
 
-void JEventProcessor_TAGM_timing::lock() {
-   japp->RootWriteLock();
-   if (lockflag) {
-      std::cerr << "Error in JEventProcessor_TAGM_timing::lock() - "
-                   "deadlock!" << std::endl;
-   }
-   else {
-      lockflag = 1;
-   }
-}
 
-void JEventProcessor_TAGM_timing::unlock() {
-   if (lockflag == 0) {
-      std::cerr << "Error in JEventProcessor_TAGM_timing::evnt() - "
-                   "double unlock!" << std::endl;
-   }
-   else {
-      lockflag = 0;
-   }
-   japp->RootUnLock();
-}
+void JEventProcessor_TAGM_timing::Init() {
 
-jerror_t JEventProcessor_TAGM_timing::init(void) {
-   lock();
+   // lock all root operations
+   auto app = GetApplication();
+   auto lock_svc = app->GetService<JLockService>();
+   lock_svc->RootWriteLock();
    tags = new TTree("tags", "TAGM timing study");
    tags->Branch("adctime", &adctime, "adctime/F");
    tags->Branch("tdctime", &tdctime, "tdctime/F");
@@ -278,23 +263,22 @@ jerror_t JEventProcessor_TAGM_timing::init(void) {
       }
    }
 
-   unlock();
-   return NOERROR;
+   lock_svc->RootUnLock();
 }
 
 
-jerror_t JEventProcessor_TAGM_timing::brun(JEventLoop *eventLoop, int32_t runnumber) {
+void JEventProcessor_TAGM_timing::BeginRun(const std::shared_ptr<const JEvent>& event) {
    for (int fadc250chan=0; fadc250chan < tagm_fadc250_channels; ++fadc250chan) {
       int rowcol = fadc250_rowcolumn[fadc250chan];
       fadc250_channel_from_rowcolumn[rowcol] = fadc250chan;
    }
-   return NOERROR;
 }
 
-jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t eventnumber) {
+
+void JEventProcessor_TAGM_timing::Process(const std::shared_ptr<const JEvent>& event) {
    // This is called for every event. Use of common resources like writing
    // to a file or filling a histogram should be mutex protected. Using
-   // loop-Get(...) to get reconstructed objects (and thereby activating the
+   // loop->Get(...) to get reconstructed objects (and thereby activating the
    // reconstruction algorithm) should be done outside of any mutex lock
    // since multiple threads may call this method at the same time.
 
@@ -302,7 +286,7 @@ jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t event
    const DL1Trigger *trig_words = 0;
    uint32_t trig_mask, fp_trig_mask;
    try {
-      eventLoop->GetSingle(trig_words);
+      event->GetSingle(trig_words);
    } catch(...) {};
    if (trig_words) {
       trig_mask = trig_words->trig_mask;
@@ -315,15 +299,16 @@ jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t event
    int trig_bits = fp_trig_mask > 0 ? 10 + fp_trig_mask : trig_mask;
 #ifdef SELECT_TRIGGER_TYPE
    if ((trig_bits & (1 << SELECT_TRIGGER_TYPE)) == 0)
-      return NOERROR;
+      return;
 #endif
 
-   lock();
+  auto app = GetApplication();
+  auto lock_svc = app->GetService<JLockService>();
 
    rftime = 999;
    const double rf_period = 4.008;
    std::vector<const DRFTime*> rf_times;
-   eventLoop->Get(rf_times, "TAGH");
+   event->Get(rf_times, "TAGH");
    std::vector<const DRFTime*>::iterator irf;
    for (irf = rf_times.begin(); irf != rf_times.end(); ++irf) {
       int nper = round((*irf)->dTime / rf_period);
@@ -331,7 +316,7 @@ jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t event
    }
  
    std::vector<const DTAGMHit*> tagm_hits;
-   eventLoop->Get(tagm_hits, "Calib");
+   event->Get(tagm_hits, "Calib");
    std::vector<std::vector<float> > timelist;
    std::vector<std::vector<float> > peaklist;
    for (int i=0; i < tagm_fadc250_channels; ++i) {
@@ -397,7 +382,7 @@ jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t event
 
       nraw = 0;
       std::vector<const Df250WindowRawData*> traces;
-      eventLoop->Get(traces);
+      event->Get(traces);
       std::vector<const Df250WindowRawData*>::iterator itrace;
       for (itrace = traces.begin(); itrace != traces.end(); ++itrace) {
          if ((*itrace)->rocid == tagm_fadc250_rocid) {
@@ -413,20 +398,11 @@ jerror_t JEventProcessor_TAGM_timing::evnt(JEventLoop *eventLoop, uint64_t event
       
       tags->Fill();
    }
-
-   unlock();
-   return NOERROR;
+   lock_svc->RootUnLock();
 }
 
-jerror_t JEventProcessor_TAGM_timing::erun(void) {
-   return NOERROR;
+void JEventProcessor_TAGM_timing::EndRun() {
 }
 
-jerror_t JEventProcessor_TAGM_timing::fini(void) {
-   lock();
-
-   tags->Write();
-
-   unlock();
-   return NOERROR;
+void JEventProcessor_TAGM_timing::Finish() {
 }

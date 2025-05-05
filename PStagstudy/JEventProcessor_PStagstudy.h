@@ -13,27 +13,23 @@
 #include <TH1D.h>
 #include <vector>
 
-class JEventProcessor_PStagstudy:public jana::JEventProcessor
-{
+
+class JEventProcessor_PStagstudy : public JEventProcessor {
  public:
    JEventProcessor_PStagstudy();
    ~JEventProcessor_PStagstudy();
-   const char* className(void) {
-     return "JEventProcessor_PStagstudy";
-   }
+   const char* className(void) { return "JEventProcessor_PStagstudy"; }
 
    TTree *pstags;
-   int lockflag;
-   void lock();
-   void unlock();
 
    int runno;
    int eventno;
+   int trigger;
    unsigned long int timestamp;
    unsigned long int epochtime;
    unsigned long int epoch_reference;
    unsigned long int bctime;
-   float beamcurrent;
+   unsigned long int beamcurrent;
 
    DBeamCurrent_factory *bc_factory;
 
@@ -182,11 +178,11 @@ class JEventProcessor_PStagstudy:public jana::JEventProcessor
                                                           DTranslationTable::csc_t csc);
 
  private:
-   jerror_t init(void);
-   jerror_t brun(jana::JEventLoop *eventLoop, int32_t runnumber);
-   jerror_t evnt(jana::JEventLoop *eventLoop, uint64_t eventnumber);
-   jerror_t erun(void);
-   jerror_t fini(void);
+   void Init() override;
+   void BeginRun(const std::shared_ptr<const JEvent>& event) override;
+   void Process(const std::shared_ptr<const JEvent>& event) override;
+   void EndRun() override;
+   void Finish() override;
 };
 
 #endif // _JEventProcessor_PStagstudy_

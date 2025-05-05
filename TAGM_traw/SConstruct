@@ -32,7 +32,7 @@ import glob
 # Get HALLD_RECON_HOME environment variable, verifying it is set
 halld_home = os.getenv('HALLD_RECON_HOME')
 if(halld_home == None):
-	print 'HALLD_RECON_HOME environment variable not set!'
+	print('HALLD_RECON_HOME environment variable not set!')
 	exit(-1)
 
 # Get HALLD_MY if it exists. Otherwise use HALLD_RECON_HOME
@@ -51,7 +51,7 @@ SHOWBUILD = ARGUMENTS.get('SHOWBUILD', 0)
 osname = os.getenv('BMS_OSNAME', 'build')
 
 # Get architecture name
-arch = subprocess.Popen(["uname"], stdout=subprocess.PIPE).communicate()[0].strip()
+arch = subprocess.Popen(["uname"], stdout=subprocess.PIPE).communicate()[0].strip().decode()
 
 # Setup initial environment
 installdir = "%s/%s" %(halld_my, osname)
