@@ -308,6 +308,10 @@ void JEventProcessor_PStagstudy::Init() {
    auto lock_svc = app->GetService<JLockService>();
    lock_svc->RootWriteLock();
 
+   bc_factory = new DBeamCurrent_factory();
+   bc_factory->SetApplication(app);
+   bc_factory->Init();
+
    std::ifstream tlimits("epoch_time_limits");
    int t0, t1;
    if (tlimits.is_open()) {
@@ -321,14 +325,12 @@ void JEventProcessor_PStagstudy::Init() {
       epoch_time_limits.emplace_back(0, 1999999999);
    }
 
-   bc_factory = new DBeamCurrent_factory();
-   bc_factory->Init();
-
    gInterpreter->GenerateDictionary("std::vector<std::vector<unsigned short> >", "vector"); 
 
    pstags = new TTree("pstags", "PS tag study");
    pstags->Branch("runno", &runno, "runno/i");
    pstags->Branch("eventno", &eventno, "eventno/i");
+   pstags->Branch("trgigger", &trigger, "trigger/i");
    pstags->Branch("timestamp", &timestamp, "timestamp/l");
    pstags->Branch("epochtime", &epochtime, "epochtime/l");
    pstags->Branch("beamcurrent", &beamcurrent, "beamcurrent/i");
@@ -522,6 +524,7 @@ void JEventProcessor_PStagstudy::BeginRun(const std::shared_ptr<const JEvent>& e
                 << beam_current_record_url << std::endl
                 << "...continuing on without beam current information from EPICS"
                 << std::endl;
+      lock_svc->RootUnLock();
       return;
    }
    TTree *bctree = dynamic_cast<TTree*>(bcfile->Get(beam_current_record_tree.c_str()));
@@ -532,6 +535,7 @@ void JEventProcessor_PStagstudy::BeginRun(const std::shared_ptr<const JEvent>& e
                 << "...continuing on without beam current information from EPICS"
                 << std::endl;
       bcfile->Close();
+      lock_svc->RootUnLock();
       return;
    }
    uint32_t tepoch_s;
@@ -563,12 +567,16 @@ void JEventProcessor_PStagstudy::Process(const std::shared_ptr<const JEvent>& ev
    // reconstruction algorithm) should be done outside of any mutex lock
    // since multiple threads may call this method at the same time.
 
+   auto app = GetApplication();
+   auto lock_svc = app->GetService<JLockService>();
+
    bc_factory->Process(event);
    double ticks_per_sec = bc_factory->ticks_per_sec;
 
    std::vector<const DCODAEventInfo*> event_info;
    event->Get(event_info);
    if (event_info.size() == 0) {
+      lock_svc->RootUnLock();
       return;
    }
 
@@ -595,13 +603,12 @@ void JEventProcessor_PStagstudy::Process(const std::shared_ptr<const JEvent>& ev
    }
    int trig_bits = fp_trig_mask > 0 ? 10 + fp_trig_mask : trig_mask;
 #ifdef SELECT_TRIGGER_TYPE
-   if ((trig_bits & (1 << SELECT_TRIGGER_TYPE)) == 0)
+   if ((trig_bits & (1 << SELECT_TRIGGER_TYPE)) == 0) {
+      lock_svc->RootUnLock();
       return;
+   }
 #endif
  
-   auto app = GetApplication();
-   auto lock_svc = app->GetService<JLockService>();
-
    runno = event_info[0]->run_number;
    eventno = event_info[0]->event_number;
    timestamp = event_info[0]->avg_timestamp;
