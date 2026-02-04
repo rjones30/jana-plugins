@@ -50,7 +50,7 @@ using namespace jana;
 
 std::vector<std::pair<uint32_t, uint32_t> > epoch_time_limits;
 std::map<uint32_t, uint32_t> beam_current_from_epics;
-std::string beam_current_record_url("root://cn445.storrs.hpc.uconn.edu"
+std::string beam_current_record_url("root://nod65.phys.uconn.edu"
                                    "/Gluex/resilient/resources/"
                                    "HallD_beam_current_record-11-15-2024.root");
 std::string beam_current_record_tree("beamcur");
