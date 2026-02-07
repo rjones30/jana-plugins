@@ -569,6 +569,7 @@ void JEventProcessor_PStagstudy::Process(const std::shared_ptr<const JEvent>& ev
 
    auto app = GetApplication();
    auto lock_svc = app->GetService<JLockService>();
+   lock_svc->RootWriteLock();
 
    bc_factory->Process(event);
    double ticks_per_sec = bc_factory->ticks_per_sec;
@@ -627,8 +628,8 @@ void JEventProcessor_PStagstudy::Process(const std::shared_ptr<const JEvent>& ev
    event->Get(currents);
    std::vector<const DBeamCurrent*>::iterator icur;
    for (icur = currents.begin(); icur != currents.end(); ++icur) {
-      std::cout << "found DBeamCurrent with unix_time "
-                << (*ictrl)->unix_time << std::endl;
+      // std::cout << "found DBeamCurrent with t "
+      //           << (*icur)->t << std::endl;
       beamcurrent = (*icur)->Ibeam;
       bctime = (*icur)->t;
    } 
