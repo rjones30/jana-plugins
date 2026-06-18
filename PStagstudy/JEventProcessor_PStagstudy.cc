@@ -1156,7 +1156,7 @@ void JEventProcessor_PStagstudy::Process(const std::shared_ptr<const JEvent>& ev
             }
          }
       }
-      ps_raw_waveform.push_back(trace);
+      psc_raw_waveform.push_back(trace);
       npsc++;
    }
 
