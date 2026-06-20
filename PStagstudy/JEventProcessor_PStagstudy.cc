@@ -247,7 +247,7 @@ int fadc250_rowcolumn[128] = {3,2,1,6,5,4,1009,2009,3009,4009,5009,9,8,7,12,11,
 std::map<int, int> fadc250_channel_from_rowcolumn;
 
 // main trigger is bit 0, ps triggers are bit 3
-#define SELECT_TRIGGER_TYPE 3
+//#define SELECT_TRIGGER_TYPE 3
 
 void report_bad_pmax(const DTAGMHit *itagm) {
    jout << "  DTAGMHit: column=" << itagm->column
